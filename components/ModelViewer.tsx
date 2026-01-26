@@ -101,6 +101,8 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
 
 interface ErrorBoundaryProps { 
     children?: ReactNode;
+    // Fix: explicitly add key prop to satisfy TypeScript when it's passed during JSX rendering
+    key?: React.Key;
 }
 
 interface ErrorBoundaryState { 
@@ -111,9 +113,13 @@ interface ErrorBoundaryState {
 /**
  * ErrorBoundary class component to catch rendering errors in the 3D scene.
  */
-// Fix: Use React.Component explicitly to ensure standard class properties like setState and props are available to TypeScript
+// Fix: Inherit from React.Component explicitly to ensure inherited members like this.state and this.setState are visible to TypeScript
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    // Fix: state is correctly defined as a member of the class
+    this.state = { hasError: false, error: null };
+  }
 
   static getDerivedStateFromError(error: any): ErrorBoundaryState {
     return { hasError: true, error };
@@ -124,20 +130,29 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    if (this.state.hasError) {
+    // Fix: Access state and props members inherited from React.Component
+    const { hasError } = this.state;
+    const { children } = this.props;
+
+    if (hasError) {
       return (
         <Html center>
           <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 text-center w-80">
             <div className="text-red-500 font-bold mb-2 text-lg">Loading Failed</div>
             <p className="text-sm text-gray-500 mb-4">Unable to load the 3D model. Please check the URL or your connection.</p>
-            {/* Fix: Correctly call setState from the React.Component base class */}
-            <button onClick={() => this.setState({ hasError: false, error: null })} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition">Retry</button>
+            {/* Fix: setState is a recognized method on the class instance */}
+            <button 
+                onClick={() => this.setState({ hasError: false, error: null })} 
+                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition"
+            >
+                Retry
+            </button>
           </div>
         </Html>
       );
     }
-    // Fix: Correctly access children from this.props which is provided by React.Component
-    return this.props.children;
+    // Fix: children prop is available
+    return children;
   }
 }
 
@@ -339,6 +354,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         />
         <ScreenshotHandler ref={screenshotHandlerRef} />
         <Suspense fallback={<Html center><div className="flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Initializing Scene...</p></div></Html>}>
+            {/* key is explicitly defined in ErrorBoundaryProps to avoid assignability errors */}
             <ErrorBoundary key={modelUrl}>
                 <InnerScene 
                     url={modelUrl}

@@ -62,7 +62,6 @@ const App: React.FC = () => {
       };
     });
     
-    // 手機版自動收合功能
     if (window.innerWidth < 1024) {
       setTimeout(() => setIsPanelVisible(false), 300);
     }
@@ -173,7 +172,7 @@ const App: React.FC = () => {
            />
 
            {(!selectedPart) && (
-             <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in-95 duration-700">
+             <div className="absolute inset-0 flex items-end justify-center pb-[18vh] pointer-events-none animate-in fade-in zoom-in-95 duration-700">
                <div className="flex flex-col items-center gap-4">
                   <div className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-2xl border border-white animate-bounce">
                     <MousePointer2 size={28} className="text-indigo-600" />
@@ -246,9 +245,6 @@ const App: React.FC = () => {
                                                 value={currentColorHex} 
                                                 onChange={(e) => {
                                                   updateTextureConfig('color', e.target.value);
-                                                  // 手機版點擊顏色選擇器的「完成」或切換顏色後，點擊外部通常會自動收合，
-                                                  // 這裡可以在 onChange 時加入邏輯，但為了不干擾連續選色，我們不在這裡強行收合，
-                                                  // 而是建議使用者選完後手動收合，或者在顏色選擇器失去焦點時處理。
                                                 }} 
                                                 onBlur={() => {
                                                   if (window.innerWidth < 1024) setIsPanelVisible(false);
