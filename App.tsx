@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Upload, X, RotateCw, Share2, Download, ChevronUp, ChevronDown, Menu } from 'lucide-react';
+import { X, RotateCw, Share2, Download, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2 } from 'lucide-react';
 import ModelViewer from './components/ModelViewer';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
 
@@ -36,7 +35,7 @@ const App: React.FC = () => {
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [isGeneratingScreenshot, setIsGeneratingScreenshot] = useState(false);
   
-  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
 
   const modelViewerRef = useRef<any>(null);
 
@@ -44,8 +43,6 @@ const App: React.FC = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       if (!file.type.startsWith('image/')) return alert('Invalid image file.');
-      if (file.size > 5 * 1024 * 1024) return alert('File too large (>5MB).');
-
       const url = URL.createObjectURL(file);
       setLibraries(prev => ({ 
           ...prev, 
@@ -60,10 +57,15 @@ const App: React.FC = () => {
       const existing = prev[selectedPart.id];
       if (existing) return { ...prev, [selectedPart.id]: { ...existing, url: texture.url } };
       return { 
-        ...prev, 
-        [selectedPart.id]: { url: texture.url, scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 } 
+        [selectedPart.id]: { url: texture.url, scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 },
+        ...prev
       };
     });
+    
+    // 手機版自動收合功能
+    if (window.innerWidth < 1024) {
+      setTimeout(() => setIsPanelVisible(false), 300);
+    }
   };
 
   const updateTextureConfig = (key: keyof TextureConfig, value: any) => {
@@ -97,20 +99,36 @@ const App: React.FC = () => {
     };
   }, [selectedPart]);
 
-  // Open panel when a part is selected on mobile
   useEffect(() => {
-    if (selectedPart) setIsPanelExpanded(true);
+    if (selectedPart) {
+      setIsPanelVisible(true);
+    }
   }, [selectedPart]);
 
+  const asideClasses = useMemo(() => {
+    const base = "absolute z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible shadow-2xl";
+    let mobileState = "bottom-0 left-0 w-full h-[60vh] rounded-t-[40px]";
+    if (selectedPart) {
+        mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
+    } else {
+        mobileState += " translate-y-full";
+    }
+    let desktopState = "lg:top-0 lg:bottom-0 lg:right-0 lg:left-auto lg:h-full lg:w-[400px] lg:rounded-none lg:border-l lg:border-gray-50 lg:translate-y-0";
+    if (selectedPart) {
+        desktopState += isPanelVisible ? " lg:translate-x-0" : " lg:translate-x-full";
+    } else {
+        desktopState += " lg:translate-x-full";
+    }
+    return `${base} ${mobileState} ${desktopState}`;
+  }, [selectedPart, isPanelVisible]);
+
   return (
-    <div className="flex flex-col h-screen bg-[#f8f9fa] text-[#1a1a1a] overflow-hidden">
-      {/* Navigation Header */}
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100 shrink-0 z-30 shadow-sm">
+    <div className="flex flex-col h-screen bg-white text-[#1a1a1a] overflow-hidden font-sans">
+      <header className="flex items-center justify-between pl-8 pr-6 lg:pl-10 py-4 bg-white border-b border-gray-100 shrink-0 z-50">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-black tracking-tighter uppercase leading-none">
+          <h1 className="text-[20px] lg:text-[25px] font-black tracking-tighter uppercase leading-none">
             PAIHO <span className="text-indigo-600">:</span> U
           </h1>
-          <span className="hidden sm:inline-block text-[9px] font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full tracking-widest">V3.5.0</span>
         </div>
         <div className="flex items-center gap-3">
             <button 
@@ -123,22 +141,22 @@ const App: React.FC = () => {
                         setIsGeneratingScreenshot(false);
                     }, 500);
                 }} 
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all hover:bg-indigo-700 active:scale-95 shadow-lg shadow-indigo-100"
+                className="flex items-center gap-2 px-4 py-2 bg-transparent text-black border border-black rounded-full text-xs font-black uppercase tracking-widest transition-all hover:bg-black hover:text-white active:scale-95 shadow-sm"
             >
-                <Share2 size={14} /> <span>Share</span>
+                <Share2 size={14} /> <span className="hidden sm:inline">Share</span>
             </button>
             <button 
                 onClick={() => setAutoRotate(!autoRotate)} 
-                className={`p-2 rounded-lg border text-sm transition ${autoRotate ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-100 hover:bg-gray-50'}`}
+                className={`flex items-center gap-2 px-4 py-2 border rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm ${autoRotate ? 'bg-black border-black text-white' : 'bg-transparent border-black text-black hover:bg-black hover:text-white'}`}
             >
-                <RotateCw size={16} className={autoRotate ? 'animate-spin' : ''} />
+                <RotateCw size={14} className={autoRotate ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">Rotate</span>
             </button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Main Canvas Area */}
-        <main className="flex-1 relative bg-[#f8f9fa]">
+        <main className="absolute inset-0 z-0 bg-[#f8f9fa]">
            <ModelViewer 
              ref={modelViewerRef} 
              modelFile={null} 
@@ -153,156 +171,153 @@ const App: React.FC = () => {
              shadowNormalBias={0.2}
              autoRotate={autoRotate}
            />
+
+           {(!selectedPart) && (
+             <div className="absolute inset-0 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in-95 duration-700">
+               <div className="flex flex-col items-center gap-4">
+                  <div className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-2xl border border-white animate-bounce">
+                    <MousePointer2 size={28} className="text-indigo-600" />
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400 drop-shadow-sm">Select Part to customize</span>
+               </div>
+             </div>
+           )}
         </main>
 
-        {/* Customization Sidebar / Bottom Sheet */}
-        <aside className={`
-          fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 shadow-[0_-20px_40px_rgba(0,0,0,0.05)] transition-transform duration-500 ease-in-out
-          lg:static lg:w-[380px] lg:h-full lg:border-l lg:border-t-0 lg:translate-y-0
-          ${isPanelExpanded ? 'translate-y-0' : 'translate-y-[calc(100%-48px)]'}
-          flex flex-col
-        `}>
-            {/* Mobile Drag Handle / Toggle */}
-            <div className="lg:hidden flex items-center justify-center h-12 border-b border-gray-50 cursor-pointer" onClick={() => setIsPanelExpanded(!isPanelExpanded)}>
-               {isPanelExpanded ? <ChevronDown size={20} className="text-gray-300" /> : <ChevronUp size={20} className="text-gray-300" />}
-            </div>
+        <aside className={asideClasses}>
+            {selectedPart && (
+              <button 
+                onClick={() => setIsPanelVisible(!isPanelVisible)}
+                className={`
+                  hidden lg:flex absolute top-1/2 -translate-y-1/2 -left-10 z-50 items-center justify-center
+                  w-10 h-24 bg-white border border-gray-100 shadow-[-10px_0_30px_rgba(0,0,0,0.08)] rounded-l-2xl transition-all duration-500
+                  hover:bg-gray-50 text-gray-400 hover:text-indigo-600
+                `}
+              >
+                {isPanelVisible ? <ChevronRight size={20} strokeWidth={3} /> : <ChevronLeft size={20} strokeWidth={3} />}
+              </button>
+            )}
 
-            <div className="flex-1 overflow-y-auto no-scrollbar p-6 lg:p-8 space-y-8 h-[60vh] lg:h-auto">
-                {!selectedPart ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 animate-in fade-in duration-500">
-                        <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-2">
-                           <Menu size={24} className="text-gray-200" />
-                        </div>
-                        <div>
-                            <p className="text-sm font-black text-gray-900">Customize Part</p>
-                            <p className="text-[11px] text-gray-400 mt-1 max-w-[220px] mx-auto leading-relaxed">
-                                Click directly on any part of the 3D model to begin customization.
-                            </p>
-                        </div>
-                    </div>
-                ) : (
-                    <div key={selectedPart.id} className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="flex items-center justify-between pb-4 border-b border-gray-50">
-                            <div>
-                                <p className="text-[9px] uppercase tracking-widest text-indigo-500 font-bold mb-0.5">Customizing</p>
-                                <h2 className="text-xl font-black">{selectedPart.name}</h2>
-                            </div>
-                            <button onClick={() => setSelectedPart(null)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-400"><X size={18}/></button>
-                        </div>
+            {selectedPart && (
+              <button 
+                onClick={() => setIsPanelVisible(!isPanelVisible)}
+                className={`
+                  lg:hidden absolute left-1/2 -translate-x-1/2 -top-10 z-[70] flex items-center justify-center
+                  w-24 h-10 bg-white border border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-2xl transition-all duration-500
+                  text-gray-400 active:scale-90
+                `}
+              >
+                {isPanelVisible ? <ChevronDown size={28} strokeWidth={3} /> : <ChevronUp size={28} strokeWidth={3} />}
+              </button>
+            )}
 
-                        {/* Material Grid */}
+            <div className="flex-1 overflow-y-auto no-scrollbar px-8 pb-20 pt-10 lg:px-10 lg:py-8 space-y-12">
+                {selectedPart ? (
+                    <div key={selectedPart.id} className="space-y-10 animate-in fade-in slide-in-from-bottom-6 lg:slide-in-from-right-10 duration-700">
                         {(visibleLibs.vamp || visibleLibs.label) && (
                             <section>
-                                <div className="flex justify-between items-center mb-4 px-1">
-                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Library</h3>
-                                    <label className="text-[9px] cursor-pointer text-indigo-500 hover:underline flex items-center gap-1 font-bold uppercase">
-                                        <Upload size={10}/> Upload
-                                        <input type="file" className="hidden" onChange={handleTextureUpload} />
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900">Materials</h3>
+                                    <label className="text-[10px] cursor-pointer text-indigo-600 font-black uppercase tracking-widest hover:underline px-4 py-1.5 border border-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition-all">
+                                        Upload <input type="file" className="hidden" onChange={handleTextureUpload} />
                                     </label>
                                 </div>
-                                <div className="grid grid-cols-4 gap-3">
+                                <div className="grid grid-cols-3 gap-3">
                                     {(visibleLibs.vamp ? libraries.vamp : libraries.label).map(t => (
                                         <button 
                                             key={t.id} 
                                             onClick={() => applyTexture(t)} 
-                                            className={`aspect-square rounded-xl border-2 overflow-hidden transition-all transform active:scale-95 ${currentTextureConfig?.url === t.url ? 'border-indigo-600 ring-2 ring-indigo-50 ring-offset-1' : 'border-transparent bg-gray-50 hover:border-gray-200'}`}
+                                            className={`aspect-square rounded-2xl overflow-hidden transition-all border-2 group ${currentTextureConfig?.url === t.url ? 'border-indigo-600 scale-[0.98] shadow-lg' : 'border-transparent bg-gray-50 hover:border-gray-100'}`}
                                         >
-                                            <img src={t.url} className="w-full h-full object-cover" alt={t.name} />
+                                            <img src={t.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={t.name} />
                                         </button>
                                     ))}
                                 </div>
                             </section>
                         )}
-
-                        {/* Color Picker */}
                         {visibleLibs.shoelace && (
                             <section>
-                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4">Color</h3>
-                                <div className="bg-gray-50 p-5 rounded-2xl flex items-center gap-5 border border-gray-100">
-                                    <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-sm border border-gray-200">
-                                        <input 
-                                            type="color" 
-                                            value={currentColorHex} 
-                                            onChange={(e) => updateTextureConfig('color', e.target.value)} 
-                                            className="absolute inset-0 w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4 cursor-pointer" 
-                                        />
-                                    </div>
-                                    <div className="space-y-0.5">
-                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-widest">Hex Code</p>
-                                        <p className="text-lg font-black text-indigo-600 uppercase tracking-tighter">{currentColorHex}</p>
+                                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900 mb-6">Palette Selection</h3>
+                                <div className="bg-gray-50 p-6 rounded-3xl flex items-center justify-between gap-6 border border-gray-100">
+                                    <div className="flex items-center gap-6">
+                                        <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-inner border-4 border-white">
+                                            <input 
+                                                type="color" 
+                                                value={currentColorHex} 
+                                                onChange={(e) => {
+                                                  updateTextureConfig('color', e.target.value);
+                                                  // 手機版點擊顏色選擇器的「完成」或切換顏色後，點擊外部通常會自動收合，
+                                                  // 這裡可以在 onChange 時加入邏輯，但為了不干擾連續選色，我們不在這裡強行收合，
+                                                  // 而是建議使用者選完後手動收合，或者在顏色選擇器失去焦點時處理。
+                                                }} 
+                                                onBlur={() => {
+                                                  if (window.innerWidth < 1024) setIsPanelVisible(false);
+                                                }}
+                                                className="absolute inset-0 w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4 cursor-pointer" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <p className="text-[16px] font-black text-gray-900 uppercase tracking-tighter">{currentColorHex}</p>
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-[0.1em] font-bold">Current Shade</p>
+                                        </div>
                                     </div>
                                 </div>
                             </section>
                         )}
-
-                        {/* Controls */}
-                        {currentTextureConfig && !visibleLibs.shoelace && (
-                            <section className="pt-4 border-t border-gray-50 space-y-4">
-                                <div className="flex justify-between items-center px-1">
-                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Scaling</h3>
-                                    <span className="text-[10px] font-bold text-indigo-600">{currentTextureConfig.scale.toFixed(1)}x</span>
+                        <div className="pt-6 border-t border-gray-50">
+                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900 mb-8">Atmosphere</h3>
+                            <div className="space-y-8 bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                                <div className="space-y-4">
+                                    <div className="flex justify-between text-[10px] font-black uppercase text-gray-400">
+                                        <span>Brightness</span>
+                                        <span className="text-indigo-600">{envIntensity.toFixed(1)}</span>
+                                    </div>
+                                    <input type="range" min="0" max="5" step="0.1" value={envIntensity} onChange={(e) => setEnvIntensity(parseFloat(e.target.value))} className="w-full accent-black h-1 bg-gray-200 rounded-full appearance-none cursor-pointer" />
                                 </div>
-                                <input 
-                                    type="range" min="0" max="5" step="0.1" 
-                                    value={currentTextureConfig.scale} 
-                                    onChange={(e) => updateTextureConfig('scale', parseFloat(e.target.value))} 
-                                    className="w-full accent-indigo-600 h-1 bg-gray-100 rounded-lg appearance-none cursor-pointer" 
-                                />
-                            </section>
-                        )}
-                    </div>
-                )}
-
-                {/* Environment Global Settings */}
-                <div className="pt-10 mt-6 border-t border-gray-50">
-                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-6">Environment</h3>
-                    <div className="space-y-6 bg-gray-50/50 p-6 rounded-2xl border border-gray-50">
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-[10px] font-bold uppercase text-gray-400">
-                                <span>Intensity</span>
-                                <span className="text-indigo-600">{envIntensity.toFixed(1)}</span>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between text-[10px] font-black uppercase text-gray-400">
+                                        <span>Sun Rotation</span>
+                                        <span className="text-indigo-600">{Math.round(envRotation)}°</span>
+                                    </div>
+                                    <input type="range" min="0" max="360" step="1" value={envRotation} onChange={(e) => setEnvRotation(parseFloat(e.target.value))} className="w-full accent-black h-1 bg-gray-200 rounded-full appearance-none cursor-pointer" />
+                                </div>
                             </div>
-                            <input type="range" min="0" max="5" step="0.1" value={envIntensity} onChange={(e) => setEnvIntensity(parseFloat(e.target.value))} className="w-full accent-indigo-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-                        </div>
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-[10px] font-bold uppercase text-gray-400">
-                                <span>Light Angle</span>
-                                <span className="text-indigo-600">{Math.round(envRotation)}°</span>
-                            </div>
-                            <input type="range" min="0" max="360" step="1" value={envRotation} onChange={(e) => setEnvRotation(parseFloat(e.target.value))} className="w-full accent-indigo-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
                         </div>
                     </div>
-                </div>
+                ) : null}
             </div>
           </aside>
       </div>
 
-       {/* Share Modal */}
        {isShareModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-md p-4 animate-in fade-in duration-300">
-            <div className="bg-white rounded-[32px] w-full max-w-4xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500">
-                <div className="flex items-center justify-between p-8 border-b border-gray-50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/95 backdrop-blur-md p-4 animate-in fade-in duration-500">
+            <div className="w-full max-w-4xl animate-in zoom-in-95 duration-500">
+                <div className="flex items-center justify-between mb-8">
                     <div>
-                        <h2 className="text-2xl font-black tracking-tight">Design Preview</h2>
-                        <p className="text-[9px] text-gray-400 font-bold tracking-[0.3em] uppercase mt-1">Rendered Snapshot v1.0</p>
+                        <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">The Masterpiece</h2>
+                        <p className="text-[10px] text-indigo-500 font-black tracking-[0.5em] uppercase mt-2">Captured in Ultra High Definition</p>
                     </div>
-                    <button onClick={() => setIsShareModalOpen(false)} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400 hover:text-gray-900"><X size={24}/></button>
+                    <button onClick={() => setIsShareModalOpen(false)} className="p-4 hover:bg-gray-100 rounded-full transition-all text-gray-400 active:scale-90">
+                        <X size={28}/>
+                    </button>
                 </div>
-                <div className="p-8">
+                <div className="space-y-10">
                     {isGeneratingScreenshot ? (
-                        <div className="h-[350px] flex flex-col items-center justify-center text-gray-400 space-y-6">
-                            <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-100 border-t-indigo-600"></div>
-                            <p className="text-xs font-bold tracking-widest uppercase">Capturing Multiside Render...</p>
+                        <div className="aspect-video bg-gray-50 rounded-[40px] flex flex-col items-center justify-center space-y-6">
+                            <div className="w-16 h-16 border-[6px] border-indigo-50 border-t-indigo-600 rounded-full animate-spin"></div>
+                            <p className="text-[12px] font-black tracking-[0.4em] uppercase text-gray-400">Synthesizing Pixels...</p>
                         </div>
                     ) : (
-                        <div className="space-y-8">
-                            <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                                <img src={screenshotUrl!} className="w-full" alt="Render" />
+                        <>
+                            <div className="rounded-[40px] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.1)] border-[12px] border-white bg-white">
+                                <img src={screenshotUrl!} className="w-full h-auto" alt="Final Design" />
                             </div>
-                            <a href={screenshotUrl!} download="design-export.png" className="w-full flex justify-center items-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-indigo-100 active:scale-[0.98]">
-                                <Download size={18} /> Download HD Image
-                            </a>
-                        </div>
+                            <div className="flex justify-center">
+                                <a href={screenshotUrl!} download="paiho-u-render.png" className="flex items-center gap-4 bg-transparent text-black border border-black px-12 py-6 rounded-full font-black text-xs uppercase tracking-[0.2em] transition-all hover:bg-black hover:text-white active:scale-95 shadow-xl">
+                                    <Download size={20} /> Download UHD Image
+                                </a>
+                            </div>
+                        </>
                     )}
                 </div>
             </div>

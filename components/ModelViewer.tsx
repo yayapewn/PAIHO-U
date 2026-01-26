@@ -101,8 +101,6 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
 
 interface ErrorBoundaryProps { 
     children?: ReactNode;
-    // Explicitly add key to props to resolve Type '{ key: any; }' is not assignable to type 'ErrorBoundaryProps'
-    key?: React.Key;
 }
 
 interface ErrorBoundaryState { 
@@ -110,18 +108,21 @@ interface ErrorBoundaryState {
     error: any; 
 }
 
-// Fix: Explicitly use React.Component to ensure TypeScript correctly resolves inherited properties like state, props, and setState.
+/**
+ * ErrorBoundary class component to catch rendering errors in the 3D scene.
+ */
+// Fix: Use React.Component explicitly to ensure standard class properties like setState and props are available to TypeScript
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  public state: ErrorBoundaryState = { hasError: false, error: null };
+
   static getDerivedStateFromError(error: any): ErrorBoundaryState {
     return { hasError: true, error };
   }
+
   componentDidCatch(error: any, errorInfo: ErrorInfo) {
     console.error("Model loading error:", error, errorInfo);
   }
+
   render() {
     if (this.state.hasError) {
       return (
@@ -129,11 +130,13 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 text-center w-80">
             <div className="text-red-500 font-bold mb-2 text-lg">Loading Failed</div>
             <p className="text-sm text-gray-500 mb-4">Unable to load the 3D model. Please check the URL or your connection.</p>
+            {/* Fix: Correctly call setState from the React.Component base class */}
             <button onClick={() => this.setState({ hasError: false, error: null })} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition">Retry</button>
           </div>
         </Html>
       );
     }
+    // Fix: Correctly access children from this.props which is provided by React.Component
     return this.props.children;
   }
 }
@@ -190,6 +193,7 @@ const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureM
         const material = mesh.material as THREE.MeshStandardMaterial;
         if (config.color) material.color.set(config.color);
         else material.color.setHex(0xffffff);
+        material.description = "PBR Material configuration";
         material.roughness = config.roughness;
         material.metalness = config.metalness;
         material.opacity = config.opacity;
@@ -331,7 +335,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             enableDamping={true}
             dampingFactor={0.05}
             autoRotate={autoRotate}
-            autoRotateSpeed={2.0}
+            autoRotateSpeed={3.0}
         />
         <ScreenshotHandler ref={screenshotHandlerRef} />
         <Suspense fallback={<Html center><div className="flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Initializing Scene...</p></div></Html>}>
@@ -353,7 +357,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
       </Canvas>
       <Loader />
       {selectedPart && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-md text-gray-900 px-5 py-2 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-sm z-10 flex items-center gap-3 border border-gray-100 transition-all">
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-md text-gray-900 px-5 py-2 rounded-full text-[10px] font-black tracking-widest uppercase shadow-sm z-10 flex items-center gap-3 border border-gray-100 transition-all">
           <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
           EDITING <span className="text-indigo-600">{selectedPart.name}</span>
         </div>
