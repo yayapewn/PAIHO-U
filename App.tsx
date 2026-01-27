@@ -105,13 +105,18 @@ const App: React.FC = () => {
   }, [selectedPart]);
 
   const asideClasses = useMemo(() => {
-    const base = "absolute z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible shadow-2xl";
-    let mobileState = "bottom-0 left-0 w-full h-[60vh] rounded-t-[40px]";
+    const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible shadow-2xl pb-[env(safe-area-inset-bottom)]";
+    
+    // 行動版邏輯：
+    // - 選中部位時，收合狀態應該保留一點拉環的高度 (約 48px)，而不是 translate-y-full
+    let mobileState = "bottom-0 left-0 w-full h-[60dvh] rounded-t-[40px]";
     if (selectedPart) {
-        mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
+        // 如果面板收合，我們希望向上平移「面板高度 - 48px」，這樣頂部 48px (含按鈕) 會露出來
+        mobileState += isPanelVisible ? " translate-y-0" : " translate-y-[calc(100%-48px)]";
     } else {
         mobileState += " translate-y-full";
     }
+
     let desktopState = "lg:top-0 lg:bottom-0 lg:right-0 lg:left-auto lg:h-full lg:w-[400px] lg:rounded-none lg:border-l lg:border-gray-50 lg:translate-y-0";
     if (selectedPart) {
         desktopState += isPanelVisible ? " lg:translate-x-0" : " lg:translate-x-full";
@@ -122,7 +127,7 @@ const App: React.FC = () => {
   }, [selectedPart, isPanelVisible]);
 
   return (
-    <div className="flex flex-col h-screen bg-white text-[#1a1a1a] overflow-hidden font-sans">
+    <div className="flex flex-col h-screen h-[100dvh] bg-white text-[#1a1a1a] overflow-hidden font-sans pt-[env(safe-area-inset-top)]">
       <header className="flex items-center justify-between pl-8 pr-6 lg:pl-10 py-4 bg-white border-b border-gray-100 shrink-0 z-50">
         <div className="flex items-center gap-3">
           <h1 className="text-[20px] lg:text-[25px] font-black tracking-tighter uppercase leading-none">
@@ -172,7 +177,7 @@ const App: React.FC = () => {
            />
 
            {(!selectedPart) && (
-             <div className="absolute inset-0 flex items-end justify-center pb-[18vh] pointer-events-none animate-in fade-in zoom-in-95 duration-700">
+             <div className="absolute inset-0 flex items-end justify-center pb-[18dvh] pointer-events-none animate-in fade-in zoom-in-95 duration-700">
                <div className="flex flex-col items-center gap-4">
                   <div className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-2xl border border-white animate-bounce">
                     <MousePointer2 size={28} className="text-indigo-600" />
@@ -201,8 +206,8 @@ const App: React.FC = () => {
               <button 
                 onClick={() => setIsPanelVisible(!isPanelVisible)}
                 className={`
-                  lg:hidden absolute left-1/2 -translate-x-1/2 -top-10 z-[70] flex items-center justify-center
-                  w-24 h-10 bg-white border border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-2xl transition-all duration-500
+                  lg:hidden absolute left-1/2 -translate-x-1/2 -top-12 z-[70] flex items-center justify-center
+                  w-24 h-12 bg-white border border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-[20px] transition-all duration-500
                   text-gray-400 active:scale-90
                 `}
               >

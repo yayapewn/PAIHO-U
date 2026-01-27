@@ -101,8 +101,6 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
 
 interface ErrorBoundaryProps { 
     children?: ReactNode;
-    // Fix: explicitly add key prop to satisfy TypeScript when it's passed during JSX rendering
-    key?: React.Key;
 }
 
 interface ErrorBoundaryState { 
@@ -113,11 +111,11 @@ interface ErrorBoundaryState {
 /**
  * ErrorBoundary class component to catch rendering errors in the 3D scene.
  */
-// Fix: Inherit from React.Component explicitly to ensure inherited members like this.state and this.setState are visible to TypeScript
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Use Component imported from 'react' and explicitly typed props/state
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Fix: state is correctly defined as a member of the class
+    // Properly initialize state so TypeScript recognizes it as an inherited property
     this.state = { hasError: false, error: null };
   }
 
@@ -130,7 +128,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    // Fix: Access state and props members inherited from React.Component
+    // Correctly access inherited state and props members
     const { hasError } = this.state;
     const { children } = this.props;
 
@@ -140,7 +138,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 text-center w-80">
             <div className="text-red-500 font-bold mb-2 text-lg">Loading Failed</div>
             <p className="text-sm text-gray-500 mb-4">Unable to load the 3D model. Please check the URL or your connection.</p>
-            {/* Fix: setState is a recognized method on the class instance */}
+            {/* Correctly use inherited setState method */}
             <button 
                 onClick={() => this.setState({ hasError: false, error: null })} 
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition"
@@ -151,7 +149,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </Html>
       );
     }
-    // Fix: children prop is available
     return children;
   }
 }
@@ -354,7 +351,6 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         />
         <ScreenshotHandler ref={screenshotHandlerRef} />
         <Suspense fallback={<Html center><div className="flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Initializing Scene...</p></div></Html>}>
-            {/* key is explicitly defined in ErrorBoundaryProps to avoid assignability errors */}
             <ErrorBoundary key={modelUrl}>
                 <InnerScene 
                     url={modelUrl}
