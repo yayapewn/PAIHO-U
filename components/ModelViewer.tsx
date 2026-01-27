@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, Suspense, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
+import React, { Component, useEffect, useState, Suspense, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Html, Loader, Environment, PerspectiveCamera, Center, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
@@ -9,7 +9,7 @@ const DEFAULT_MODEL_URL = "https://huggingface.co/yayapewn/huggingface/resolve/m
 const INTERACTIVE_KEYWORDS = ['Shape027', 'Line040', 'Shape026'];
 
 const DEFAULT_VIEW = {
-    pos: [0.85, 0, 0] as [number, number, number], // 修正 Y 軸為 0 確保垂直置中
+    pos: [0.85, 0, 0] as [number, number, number], 
     target: [0, 0, 0] as [number, number, number],
     fov: 37.8
 };
@@ -100,7 +100,6 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
 
 interface ErrorBoundaryProps { 
     children?: ReactNode;
-    // Fix for line 345: adding key to props interface
     key?: React.Key;
 }
 
@@ -109,11 +108,10 @@ interface ErrorBoundaryState {
     error: any; 
 }
 
-// Fix for lines 112, 124, 125, 134: Explicitly extend React.Component to ensure access to state, props, and setState
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fixed ErrorBoundary class component to properly inherit from React.Component for state and props recognition
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Fix for line 112: Property 'state' now exists because we extend React.Component
     this.state = { hasError: false, error: null };
   }
 
@@ -126,9 +124,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    // Fix for line 124: Property 'state' now exists because we extend React.Component
     const { hasError } = this.state;
-    // Fix for line 125: Property 'props' now exists because we extend React.Component
     const { children } = this.props;
 
     if (hasError) {
@@ -137,7 +133,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 text-center w-80">
             <div className="text-red-500 font-bold mb-2 text-lg">Loading Failed</div>
             <p className="text-sm text-gray-500 mb-4">Unable to load the 3D model. Please check the URL or your connection.</p>
-            {/* Fix for line 134: Property 'setState' now exists because we extend React.Component */}
             <button 
                 onClick={() => this.setState({ hasError: false, error: null })} 
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition"
@@ -204,7 +199,6 @@ const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureM
         const material = mesh.material as THREE.MeshStandardMaterial;
         if (config.color) material.color.set(config.color);
         else material.color.setHex(0xffffff);
-        // Workaround for non-standard property if TS complains, though not reported by user.
         (material as any).description = "PBR Material configuration";
         material.roughness = config.roughness;
         material.metalness = config.metalness;
@@ -351,7 +345,6 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         />
         <ScreenshotHandler ref={screenshotHandlerRef} />
         <Suspense fallback={<Html center><div className="flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Initializing Scene...</p></div></Html>}>
-            {/* Fix for line 345: ErrorBoundary now accepts key correctly due to explicit prop definition */}
             <ErrorBoundary key={modelUrl}>
                 <InnerScene 
                     url={modelUrl}
@@ -370,9 +363,20 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
       </Canvas>
       <Loader />
       {selectedPart && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-white/80 backdrop-blur-md text-gray-900 px-5 py-2 rounded-full text-[10px] font-black tracking-widest uppercase shadow-sm z-10 flex items-center gap-3 border border-gray-100 transition-all">
-          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-          EDITING <span className="text-indigo-600">{selectedPart.name}</span>
+        <div className={`
+            absolute left-1/2 -translate-x-1/2 z-10 
+            transition-all duration-500 ease-out animate-in fade-in slide-in-from-top-4
+            flex items-center gap-3 px-6 py-2.5 rounded-full
+            bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_rgba(0,0,0,0.05)]
+            /* 行動版：避開頂部 Header，保持在視覺中心上方 */
+            top-[max(110px,18dvh)]
+            /* 電腦版：標準邊距 */
+            lg:top-32
+        `}>
+          <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+          <span className="text-[10px] lg:text-[11px] font-black tracking-[0.2em] uppercase text-gray-900">
+            EDITING <span className="text-indigo-600 ml-1">{selectedPart.name}</span>
+          </span>
         </div>
       )}
     </div>
