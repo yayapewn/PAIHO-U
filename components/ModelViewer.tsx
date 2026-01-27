@@ -1,5 +1,5 @@
 
-import React, { Component, useEffect, useState, Suspense, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
+import React, { useEffect, useState, Suspense, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Html, Loader, Environment, PerspectiveCamera, Center, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
@@ -108,8 +108,11 @@ interface ErrorBoundaryState {
     error: any; 
 }
 
-// Fixed ErrorBoundary class component to properly inherit from React.Component for state and props recognition
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+/**
+ * ErrorBoundary Component
+ * Fix: explicitly extend React.Component to ensure props, state, and setState are inherited correctly.
+ */
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -124,6 +127,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
+    // Fix: access state and props via 'this'
     const { hasError } = this.state;
     const { children } = this.props;
 
@@ -134,6 +138,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             <div className="text-red-500 font-bold mb-2 text-lg">Loading Failed</div>
             <p className="text-sm text-gray-500 mb-4">Unable to load the 3D model. Please check the URL or your connection.</p>
             <button 
+                // Fix: access setState via 'this'
                 onClick={() => this.setState({ hasError: false, error: null })} 
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition"
             >
@@ -368,13 +373,15 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             transition-all duration-500 ease-out animate-in fade-in slide-in-from-top-4
             flex items-center gap-3 px-6 py-2.5 rounded-full
             bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_rgba(0,0,0,0.05)]
+            /* 強制內容不換行，解決不同手機瀏覽器的顯示差異 */
+            whitespace-nowrap
             /* 行動版：避開頂部 Header，保持在視覺中心上方 */
             top-[max(110px,18dvh)]
             /* 電腦版：標準邊距 */
             lg:top-32
         `}>
-          <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
-          <span className="text-[10px] lg:text-[11px] font-black tracking-[0.2em] uppercase text-gray-900">
+          <span className="w-2.5 h-2.5 shrink-0 rounded-full bg-indigo-500 animate-pulse"></span>
+          <span className="text-[10px] lg:text-[11px] font-black tracking-[0.2em] uppercase text-gray-900 leading-none">
             EDITING <span className="text-indigo-600 ml-1">{selectedPart.name}</span>
           </span>
         </div>
