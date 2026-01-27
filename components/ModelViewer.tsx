@@ -1,5 +1,5 @@
 
-import React, { Component, useEffect, useState, Suspense, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
+import React, { useEffect, useState, Suspense, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Html, Loader, Environment, PerspectiveCamera, Center, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
@@ -9,7 +9,7 @@ const DEFAULT_MODEL_URL = "https://huggingface.co/yayapewn/huggingface/resolve/m
 const INTERACTIVE_KEYWORDS = ['Shape027', 'Line040', 'Shape026'];
 
 const DEFAULT_VIEW = {
-    pos: [0.85, 0.2, 0] as [number, number, number],
+    pos: [0.85, 0, 0] as [number, number, number], // 修正 Y 軸為 0 確保垂直置中
     target: [0, 0, 0] as [number, number, number],
     fov: 37.8
 };
@@ -40,7 +40,6 @@ const isUrlSafe = (url: string) => {
     }
 };
 
-// Added types for ScreenshotHandler props and ref to ensure type safety during capture
 const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
     const { gl, scene, camera } = useThree();
     React.useImperativeHandle(ref, () => ({
@@ -101,6 +100,8 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
 
 interface ErrorBoundaryProps { 
     children?: ReactNode;
+    // Fix for line 345: adding key to props interface
+    key?: React.Key;
 }
 
 interface ErrorBoundaryState { 
@@ -108,14 +109,11 @@ interface ErrorBoundaryState {
     error: any; 
 }
 
-/**
- * ErrorBoundary class component to catch rendering errors in the 3D scene.
- */
-// Use Component imported from 'react' and explicitly typed props/state
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix for lines 112, 124, 125, 134: Explicitly extend React.Component to ensure access to state, props, and setState
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Properly initialize state so TypeScript recognizes it as an inherited property
+    // Fix for line 112: Property 'state' now exists because we extend React.Component
     this.state = { hasError: false, error: null };
   }
 
@@ -128,8 +126,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
-    // Correctly access inherited state and props members
+    // Fix for line 124: Property 'state' now exists because we extend React.Component
     const { hasError } = this.state;
+    // Fix for line 125: Property 'props' now exists because we extend React.Component
     const { children } = this.props;
 
     if (hasError) {
@@ -138,7 +137,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
           <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 text-center w-80">
             <div className="text-red-500 font-bold mb-2 text-lg">Loading Failed</div>
             <p className="text-sm text-gray-500 mb-4">Unable to load the 3D model. Please check the URL or your connection.</p>
-            {/* Correctly use inherited setState method */}
+            {/* Fix for line 134: Property 'setState' now exists because we extend React.Component */}
             <button 
                 onClick={() => this.setState({ hasError: false, error: null })} 
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition"
@@ -205,7 +204,8 @@ const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureM
         const material = mesh.material as THREE.MeshStandardMaterial;
         if (config.color) material.color.set(config.color);
         else material.color.setHex(0xffffff);
-        material.description = "PBR Material configuration";
+        // Workaround for non-standard property if TS complains, though not reported by user.
+        (material as any).description = "PBR Material configuration";
         material.roughness = config.roughness;
         material.metalness = config.metalness;
         material.opacity = config.opacity;
@@ -351,6 +351,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         />
         <ScreenshotHandler ref={screenshotHandlerRef} />
         <Suspense fallback={<Html center><div className="flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Initializing Scene...</p></div></Html>}>
+            {/* Fix for line 345: ErrorBoundary now accepts key correctly due to explicit prop definition */}
             <ErrorBoundary key={modelUrl}>
                 <InnerScene 
                     url={modelUrl}

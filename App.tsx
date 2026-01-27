@@ -108,11 +108,11 @@ const App: React.FC = () => {
     const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible shadow-2xl pb-[env(safe-area-inset-bottom)]";
     
     // 行動版邏輯：
-    // - 選中部位時，收合狀態應該保留一點拉環的高度 (約 48px)，而不是 translate-y-full
+    // 當選中部位但面板收合時，使用 translate-y-full。
+    // 配合按鈕的 -top-12 負向位移與 overflow-visible，會讓白色面板完全消失，只剩按鈕貼在底部。
     let mobileState = "bottom-0 left-0 w-full h-[60dvh] rounded-t-[40px]";
     if (selectedPart) {
-        // 如果面板收合，我們希望向上平移「面板高度 - 48px」，這樣頂部 48px (含按鈕) 會露出來
-        mobileState += isPanelVisible ? " translate-y-0" : " translate-y-[calc(100%-48px)]";
+        mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
     } else {
         mobileState += " translate-y-full";
     }
@@ -127,8 +127,9 @@ const App: React.FC = () => {
   }, [selectedPart, isPanelVisible]);
 
   return (
-    <div className="flex flex-col h-screen h-[100dvh] bg-white text-[#1a1a1a] overflow-hidden font-sans pt-[env(safe-area-inset-top)]">
-      <header className="flex items-center justify-between pl-8 pr-6 lg:pl-10 py-4 bg-white border-b border-gray-100 shrink-0 z-50">
+    <div className="flex flex-col h-[100dvh] bg-white text-[#1a1a1a] overflow-hidden font-sans">
+      {/* Header 使用 absolute 定位以不佔用佈局高度，確保 3D 場景是以螢幕中心為基準 */}
+      <header className="absolute top-0 left-0 right-0 flex items-center justify-between pl-8 pr-6 lg:pl-10 pt-[max(1rem,env(safe-area-inset-top))] pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 shrink-0 z-50">
         <div className="flex items-center gap-3">
           <h1 className="text-[20px] lg:text-[25px] font-black tracking-tighter uppercase leading-none">
             PAIHO <span className="text-indigo-600">:</span> U
@@ -159,8 +160,9 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden relative">
-        <main className="absolute inset-0 z-0 bg-[#f8f9fa]">
+      <div className="relative flex-1">
+        {/* ModelViewer 設為固定全螢幕，確保 3D 相機運算結果能精確置中於動態視窗 */}
+        <main className="fixed inset-0 z-0 bg-[#f8f9fa]">
            <ModelViewer 
              ref={modelViewerRef} 
              modelFile={null} 
@@ -177,7 +179,7 @@ const App: React.FC = () => {
            />
 
            {(!selectedPart) && (
-             <div className="absolute inset-0 flex items-end justify-center pb-[18dvh] pointer-events-none animate-in fade-in zoom-in-95 duration-700">
+             <div className="absolute inset-0 flex items-end justify-center pb-[max(5rem,18dvh)] pointer-events-none animate-in fade-in zoom-in-95 duration-700">
                <div className="flex flex-col items-center gap-4">
                   <div className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-2xl border border-white animate-bounce">
                     <MousePointer2 size={28} className="text-indigo-600" />
@@ -215,7 +217,7 @@ const App: React.FC = () => {
               </button>
             )}
 
-            <div className="flex-1 overflow-y-auto no-scrollbar px-8 pb-20 pt-10 lg:px-10 lg:py-8 space-y-12">
+            <div className="flex-1 overflow-y-auto no-scrollbar px-8 pb-10 pt-10 lg:px-10 lg:py-8 space-y-12">
                 {selectedPart ? (
                     <div key={selectedPart.id} className="space-y-10 animate-in fade-in slide-in-from-bottom-6 lg:slide-in-from-right-10 duration-700">
                         {(visibleLibs.vamp || visibleLibs.label) && (
