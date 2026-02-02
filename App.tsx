@@ -3,29 +3,95 @@ import { X, RotateCw, Share2, Download, ChevronRight, ChevronLeft, ChevronUp, Ch
 import ModelViewer from './components/ModelViewer';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
 
-// Mock Data
+// Uniform link for all materials
+const UNIFORM_LINK = "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786";
+
+// Mock Data with mandatory Title, Description, and the specific Paiho Hub Link
 const VAMP_TEXTURES: TextureItem[] = [
-  { id: 'v1', name: 'Fine Fabric 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg' },
-  { id: 'v2', name: 'Woven Fabric 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg' },
-  { id: 'v3', name: 'Tech Mesh 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg' },
-  { id: 'v4', name: 'Durable 04', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg' },
-  { id: 'v5', name: 'Breathable 05', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg' },
-  { id: 'v6', name: 'Digital 06', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01436-01A-000A_BASE.jpg' },
+  { 
+    id: 'v1', name: 'Fine Fabric 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg',
+    title: '4-WAY STRETCH FABRIC',
+    description: 'A dynamic stretchable fabric providing high flexibility and comfort for peak performance.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'v2', name: 'Woven Fabric 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg',
+    title: 'ENGINEERED JACQUARD',
+    description: 'Intricately woven patterns designed for strategic support and maximum breathability.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'v3', name: 'Tech Mesh 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg',
+    title: 'AERO-VENT MESH',
+    description: 'Lightweight mesh engineered with open structures to ensure optimal cooling during activity.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'v4', name: 'Durable 04', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg', 
+    title: 'HEAVY DUTY NYLON', 
+    description: 'Abrasion-resistant nylon blend crafted for rugged environments and longevity.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'v5', name: 'Breathable 05', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', 
+    title: 'ECO-KNIT MATERIAL', 
+    description: 'Sustainable yarn choice offering a soft touch and reduced environmental impact.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'v6', name: 'Digital 06', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01436-01A-000A_BASE.jpg', 
+    title: 'DIGITAL PRINT 3D', 
+    description: 'Vibrant 3D printed texture for a futuristic and personalized aesthetic.',
+    link: UNIFORM_LINK
+  },
 ];
+
 const SHOELACE_TEXTURES: TextureItem[] = [
-  { id: 's1', name: 'Lace Texture 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg' },
-  { id: 's2', name: 'Lace Texture 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg' },
-  { id: 's3', name: 'Lace Texture 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg' },
+  { 
+    id: 's1', name: 'Lace Texture 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg', 
+    title: 'TECH-CORD LACES', 
+    description: 'High-tensile braided laces designed for a secure and consistent lockdown.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 's2', name: 'Lace Texture 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg', 
+    title: 'FLAT RIBBON WEAVE', 
+    description: 'Traditional flat-style laces for a classic look and smooth feel.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 's3', name: 'Lace Texture 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', 
+    title: 'REFLECTIVE NIGHT', 
+    description: 'Integrated reflective fibers for increased safety during low-light conditions.',
+    link: UNIFORM_LINK
+  },
 ];
+
 const LABEL_TEXTURES: TextureItem[] = [
-  { id: 'l1', name: 'Leather', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg' },
-  { id: 'l2', name: 'Carbon Fiber', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg' },
-  { id: 'l3', name: 'Matte Finish', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg' },
+  { 
+    id: 'l1', name: 'Leather', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg', 
+    title: 'PREMIUM MICRO-LEATHER', 
+    description: 'High-grade synthetic leather providing a premium look with lightweight properties.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'l2', name: 'Carbon Fiber', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', 
+    title: 'TECH CARBON FINISH', 
+    description: 'Lightweight reinforcement pattern inspired by aerospace engineering.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'l3', name: 'Matte Finish', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg', 
+    title: 'SOFT-TOUCH MATTE', 
+    description: 'Non-reflective matte surface that is smooth to the touch and scratch-resistant.',
+    link: UNIFORM_LINK
+  },
 ];
 
 const App: React.FC = () => {
   const [libraries, setLibraries] = useState({ vamp: VAMP_TEXTURES, shoelace: SHOELACE_TEXTURES, label: LABEL_TEXTURES });
   const [selectedPart, setSelectedPart] = useState<SelectedPart | null>(null);
+  const [activeTexture, setActiveTexture] = useState<TextureItem | null>(null);
   const [envIntensity, setEnvIntensity] = useState<number>(1.5); 
   const [envRotation, setEnvRotation] = useState<number>(280); 
   const [autoRotate, setAutoRotate] = useState<boolean>(false);
@@ -46,13 +112,21 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(file);
       setLibraries(prev => ({ 
           ...prev, 
-          vamp: [{ id: crypto.randomUUID(), name: file.name, url }, ...prev.vamp] 
+          vamp: [{ 
+            id: crypto.randomUUID(), 
+            name: file.name, 
+            url, 
+            title: 'CUSTOM UPLOAD', 
+            description: 'Personalized material uploaded by the user.', 
+            link: UNIFORM_LINK 
+          }, ...prev.vamp] 
       }));
     }
   };
 
   const applyTexture = (texture: TextureItem) => {
     if (!selectedPart) return;
+    setActiveTexture(texture);
     setPartTextures(prev => {
       const existing = prev[selectedPart.id];
       if (existing) return { ...prev, [selectedPart.id]: { ...existing, url: texture.url } };
@@ -61,10 +135,6 @@ const App: React.FC = () => {
         ...prev
       };
     });
-    
-    if (window.innerWidth < 1024) {
-      setTimeout(() => setIsPanelVisible(false), 300);
-    }
   };
 
   const updateTextureConfig = (key: keyof TextureConfig, value: any) => {
@@ -101,23 +171,29 @@ const App: React.FC = () => {
   useEffect(() => {
     if (selectedPart) {
       setIsPanelVisible(true);
+      const currentUrl = partTextures[selectedPart.id]?.url;
+      if (currentUrl) {
+          const allTextures = [...libraries.vamp, ...libraries.shoelace, ...libraries.label];
+          const match = allTextures.find(t => t.url === currentUrl);
+          setActiveTexture(match || null);
+      } else {
+          setActiveTexture(null);
+      }
     }
-  }, [selectedPart]);
+  }, [selectedPart, partTextures, libraries]);
 
   const asideClasses = useMemo(() => {
-    const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible shadow-2xl pb-[env(safe-area-inset-bottom)]";
+    // 側邊欄層次 z-[60] 低於 Header 的 z-[70]
+    const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible shadow-[0_-15px_60px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]";
     
-    // 行動版邏輯：
-    // 當選中部位但面板收合時，使用 translate-y-full。
-    // 配合按鈕的 -top-12 負向位移與 overflow-visible，會讓白色面板完全消失，只剩按鈕貼在底部。
-    let mobileState = "bottom-0 left-0 w-full h-[60dvh] rounded-t-[40px]";
+    let mobileState = "bottom-0 left-0 w-full h-[24dvh] rounded-t-[42px] lg:rounded-none";
     if (selectedPart) {
         mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
     } else {
         mobileState += " translate-y-full";
     }
 
-    let desktopState = "lg:top-0 lg:bottom-0 lg:right-0 lg:left-auto lg:h-full lg:w-[400px] lg:rounded-none lg:border-l lg:border-gray-50 lg:translate-y-0";
+    let desktopState = "lg:top-0 lg:bottom-0 lg:right-0 lg:left-auto lg:h-full lg:w-[420px] lg:border-l lg:border-gray-50 lg:translate-y-0";
     if (selectedPart) {
         desktopState += isPanelVisible ? " lg:translate-x-0" : " lg:translate-x-full";
     } else {
@@ -128,8 +204,8 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[100dvh] bg-white text-[#1a1a1a] overflow-hidden font-sans">
-      {/* Header 使用 absolute 定位以不佔用佈局高度，確保 3D 場景是以螢幕中心為基準 */}
-      <header className="absolute top-0 left-0 right-0 flex items-center justify-between pl-8 pr-6 lg:pl-10 pt-[max(1rem,env(safe-area-inset-top))] pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 shrink-0 z-50">
+      {/* Header 層次 z-[70] 高於 Aside 側邊欄 */}
+      <header className="absolute top-0 left-0 right-0 flex items-center justify-between pl-8 pr-6 lg:pl-10 pt-[max(1rem,env(safe-area-inset-top))] pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 shrink-0 z-[70]">
         <div className="flex items-center gap-3">
           <h1 className="text-[20px] lg:text-[25px] font-black tracking-tighter uppercase leading-none">
             PAIHO <span className="text-indigo-600">:</span> U
@@ -137,7 +213,8 @@ const App: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
             <button 
-                onClick={async () => {
+                onClick={async (e) => {
+                    e.stopPropagation();
                     setIsShareModalOpen(true);
                     setIsGeneratingScreenshot(true);
                     setTimeout(async () => {
@@ -151,7 +228,7 @@ const App: React.FC = () => {
                 <Share2 size={14} /> <span className="hidden sm:inline">Share</span>
             </button>
             <button 
-                onClick={() => setAutoRotate(!autoRotate)} 
+                onClick={(e) => { e.stopPropagation(); setAutoRotate(!autoRotate); }} 
                 className={`flex items-center gap-2 px-4 py-2 border rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm ${autoRotate ? 'bg-black border-black text-white' : 'bg-transparent border-black text-black hover:bg-black hover:text-white'}`}
             >
                 <RotateCw size={14} className={autoRotate ? 'animate-spin' : ''} />
@@ -161,7 +238,6 @@ const App: React.FC = () => {
       </header>
 
       <div className="relative flex-1">
-        {/* ModelViewer 設為固定全螢幕，確保 3D 相機運算結果能精確置中於動態視窗 */}
         <main className="fixed inset-0 z-0 bg-[#f8f9fa]">
            <ModelViewer 
              ref={modelViewerRef} 
@@ -169,6 +245,7 @@ const App: React.FC = () => {
              selectedPart={selectedPart} 
              onPartSelect={setSelectedPart}
              textureMap={mappedTextureMap} 
+             activeTexture={activeTexture}
              envPreset="studio" 
              envIntensity={envIntensity / 10} 
              envRotation={envRotation} 
@@ -190,10 +267,10 @@ const App: React.FC = () => {
            )}
         </main>
 
-        <aside className={asideClasses}>
+        <aside className={asideClasses} onClick={(e) => e.stopPropagation()}>
             {selectedPart && (
               <button 
-                onClick={() => setIsPanelVisible(!isPanelVisible)}
+                onClick={(e) => { e.stopPropagation(); setIsPanelVisible(!isPanelVisible); }}
                 className={`
                   hidden lg:flex absolute top-1/2 -translate-y-1/2 -left-10 z-50 items-center justify-center
                   w-10 h-24 bg-white border border-gray-100 shadow-[-10px_0_30px_rgba(0,0,0,0.08)] rounded-l-2xl transition-all duration-500
@@ -205,87 +282,108 @@ const App: React.FC = () => {
             )}
 
             {selectedPart && (
-              <button 
-                onClick={() => setIsPanelVisible(!isPanelVisible)}
-                className={`
-                  lg:hidden absolute left-1/2 -translate-x-1/2 -top-12 z-[70] flex items-center justify-center
-                  w-24 h-12 bg-white border border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] rounded-t-[20px] transition-all duration-500
-                  text-gray-400 active:scale-90
-                `}
-              >
-                {isPanelVisible ? <ChevronDown size={28} strokeWidth={3} /> : <ChevronUp size={28} strokeWidth={3} />}
-              </button>
+              <div className="lg:hidden absolute left-1/2 -translate-x-1/2 -top-[28px] w-24 h-8 flex items-end justify-center pointer-events-none">
+                 <button 
+                  onClick={(e) => { e.stopPropagation(); setIsPanelVisible(!isPanelVisible); }}
+                  className={`
+                    pointer-events-auto flex items-center justify-center
+                    w-16 h-8 bg-white border-t border-l border-r border-gray-100 rounded-t-[20px] transition-all duration-500
+                    text-gray-300 hover:text-indigo-600 active:scale-95
+                    relative top-[2px] z-[70] shadow-none
+                  `}
+                >
+                  {isPanelVisible ? <ChevronDown size={20} strokeWidth={3} /> : <ChevronUp size={20} strokeWidth={3} />}
+                </button>
+              </div>
             )}
 
-            <div className="flex-1 overflow-y-auto no-scrollbar px-8 pb-10 pt-10 lg:px-10 lg:py-8 space-y-12">
+            {/* 修正重點：桌面版增加 pt-32 (128px) 確保標題避開被 Header 遮擋 */}
+            <div className="flex-1 overflow-y-auto no-scrollbar px-7 pb-12 pt-8 lg:px-10 lg:pt-32 lg:pb-10 space-y-8 lg:space-y-12">
                 {selectedPart ? (
-                    <div key={selectedPart.id} className="space-y-10 animate-in fade-in slide-in-from-bottom-6 lg:slide-in-from-right-10 duration-700">
+                    <div key={selectedPart.id} className="space-y-8 animate-in fade-in slide-in-from-bottom-8 lg:slide-in-from-right-10 duration-700">
                         {(visibleLibs.vamp || visibleLibs.label) && (
                             <section>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900">Materials</h3>
-                                    <label className="text-[10px] cursor-pointer text-indigo-600 font-black uppercase tracking-widest hover:underline px-4 py-1.5 border border-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition-all">
+                                <div className="flex justify-between items-end mb-5 px-1">
+                                    <div className="flex flex-col gap-2">
+                                        <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Materials</h3>
+                                        <div className="w-10 h-[2.5px] bg-indigo-600 rounded-full mt-1"></div>
+                                    </div>
+                                    <label className="text-[9px] cursor-pointer text-indigo-600 font-black uppercase tracking-widest hover:underline border border-indigo-50 bg-indigo-50/20 px-4 py-1.5 rounded-full shadow-sm">
                                         Upload <input type="file" className="hidden" onChange={handleTextureUpload} />
                                     </label>
                                 </div>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {(visibleLibs.vamp ? libraries.vamp : libraries.label).map(t => (
-                                        <button 
-                                            key={t.id} 
-                                            onClick={() => applyTexture(t)} 
-                                            className={`aspect-square rounded-2xl overflow-hidden transition-all border-2 group ${currentTextureConfig?.url === t.url ? 'border-indigo-600 scale-[0.98] shadow-lg' : 'border-transparent bg-gray-50 hover:border-gray-100'}`}
-                                        >
-                                            <img src={t.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={t.name} />
-                                        </button>
-                                    ))}
+                                <div className="bg-gray-50/50 p-5 rounded-[28px] border border-gray-100/80 shadow-sm">
+                                    <div className="grid grid-cols-4 gap-2 lg:gap-4">
+                                        {(visibleLibs.vamp ? libraries.vamp : libraries.label).map(t => (
+                                            <button 
+                                                key={t.id} 
+                                                onClick={(e) => { e.stopPropagation(); applyTexture(t); }} 
+                                                className={`aspect-square rounded-[22px] overflow-hidden transition-all border-2 group ${currentTextureConfig?.url === t.url ? 'border-indigo-600 scale-[0.96] shadow-xl shadow-indigo-100/50' : 'border-transparent bg-white hover:border-gray-200 shadow-sm'}`}
+                                            >
+                                                <img src={t.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={t.name} />
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </section>
                         )}
                         {visibleLibs.shoelace && (
                             <section>
-                                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900 mb-6">Palette Selection</h3>
-                                <div className="bg-gray-50 p-6 rounded-3xl flex items-center justify-between gap-6 border border-gray-100">
-                                    <div className="flex items-center gap-6">
-                                        <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-inner border-4 border-white">
+                                <div className="flex flex-col gap-2 mb-5 px-1">
+                                    <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Palette Selection</h3>
+                                    <div className="w-10 h-[2.5px] bg-indigo-600 rounded-full mt-1"></div>
+                                </div>
+                                <div className="bg-gray-50/50 p-6 lg:p-7 rounded-[28px] flex items-center justify-between gap-4 border border-gray-100/80 shadow-sm">
+                                    <div className="flex items-center gap-7">
+                                        <div className="relative w-16 h-16 rounded-[24px] overflow-hidden shadow-inner border-[4px] border-white">
                                             <input 
                                                 type="color" 
                                                 value={currentColorHex} 
                                                 onChange={(e) => {
+                                                  e.stopPropagation();
                                                   updateTextureConfig('color', e.target.value);
                                                 }} 
-                                                onBlur={() => {
-                                                  if (window.innerWidth < 1024) setIsPanelVisible(false);
-                                                }}
                                                 className="absolute inset-0 w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4 cursor-pointer" 
                                             />
                                         </div>
                                         <div>
-                                            <p className="text-[16px] font-black text-gray-900 uppercase tracking-tighter">{currentColorHex}</p>
-                                            <p className="text-[10px] text-gray-400 uppercase tracking-[0.1em] font-bold">Current Shade</p>
+                                            <p className="text-[16px] font-black text-gray-900 uppercase tracking-tighter leading-none">{currentColorHex}</p>
+                                            <p className="text-[9.5px] text-gray-400 uppercase tracking-[0.12em] font-black mt-2.5">Current Shade</p>
                                         </div>
                                     </div>
                                 </div>
                             </section>
                         )}
-                        <div className="pt-6 border-t border-gray-50">
-                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900 mb-8">Atmosphere</h3>
-                            <div className="space-y-8 bg-gray-50 p-6 rounded-3xl border border-gray-100">
-                                <div className="space-y-4">
-                                    <div className="flex justify-between text-[10px] font-black uppercase text-gray-400">
+                        <section>
+                             <div className="flex flex-col gap-2 mb-5 px-1">
+                                <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Atmosphere</h3>
+                                <div className="w-10 h-[2.5px] bg-indigo-600 rounded-full mt-1"></div>
+                            </div>
+                            <div className="space-y-10 bg-gray-50/50 p-6 lg:p-7 rounded-[28px] border border-gray-100/80 shadow-sm">
+                                <div className="space-y-5">
+                                    <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
                                         <span>Brightness</span>
-                                        <span className="text-indigo-600">{envIntensity.toFixed(1)}</span>
+                                        <span className="text-indigo-600 font-black">{envIntensity.toFixed(1)}</span>
                                     </div>
-                                    <input type="range" min="0" max="5" step="0.1" value={envIntensity} onChange={(e) => setEnvIntensity(parseFloat(e.target.value))} className="w-full accent-black h-1 bg-gray-200 rounded-full appearance-none cursor-pointer" />
+                                    <input 
+                                      type="range" min="0" max="5" step="0.1" value={envIntensity} 
+                                      onChange={(e) => { e.stopPropagation(); setEnvIntensity(parseFloat(e.target.value)); }} 
+                                      className="w-full accent-indigo-600 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer" 
+                                    />
                                 </div>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between text-[10px] font-black uppercase text-gray-400">
+                                <div className="space-y-5">
+                                    <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
                                         <span>Sun Rotation</span>
-                                        <span className="text-indigo-600">{Math.round(envRotation)}°</span>
+                                        <span className="text-indigo-600 font-black">{Math.round(envRotation)}°</span>
                                     </div>
-                                    <input type="range" min="0" max="360" step="1" value={envRotation} onChange={(e) => setEnvRotation(parseFloat(e.target.value))} className="w-full accent-black h-1 bg-gray-200 rounded-full appearance-none cursor-pointer" />
+                                    <input 
+                                      type="range" min="0" max="360" step="1" value={envRotation} 
+                                      onChange={(e) => { e.stopPropagation(); setEnvRotation(parseFloat(e.target.value)); }} 
+                                      className="w-full accent-indigo-600 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer" 
+                                    />
                                 </div>
                             </div>
-                        </div>
+                        </section>
                     </div>
                 ) : null}
             </div>
@@ -293,7 +391,7 @@ const App: React.FC = () => {
       </div>
 
        {isShareModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/95 backdrop-blur-md p-4 animate-in fade-in duration-500">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/95 backdrop-blur-md p-4 animate-in fade-in duration-500" onClick={(e) => e.stopPropagation()}>
             <div className="w-full max-w-4xl animate-in zoom-in-95 duration-500">
                 <div className="flex items-center justify-between mb-8">
                     <div>

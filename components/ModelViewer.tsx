@@ -1,9 +1,9 @@
 
-import React, { useEffect, useState, Suspense, useRef, ErrorInfo, ReactNode, useMemo } from 'react';
+import React, { Component, useEffect, useState, Suspense, useRef, ErrorInfo, useMemo, ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Html, Loader, Environment, PerspectiveCamera, Center, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
-import { SelectedPart, TextureConfig } from '../types';
+import { SelectedPart, TextureConfig, TextureItem } from '../types';
 
 const DEFAULT_MODEL_URL = "https://huggingface.co/yayapewn/huggingface/resolve/main/lace-sneaker-9-part.glb";
 const INTERACTIVE_KEYWORDS = ['Shape027', 'Line040', 'Shape026'];
@@ -100,7 +100,7 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
 
 interface ErrorBoundaryProps { 
     children?: ReactNode;
-    key?: React.Key;
+    key?: string | number;
 }
 
 interface ErrorBoundaryState { 
@@ -108,11 +108,8 @@ interface ErrorBoundaryState {
     error: any; 
 }
 
-/**
- * ErrorBoundary Component
- * Fix: explicitly extend React.Component to ensure props, state, and setState are inherited correctly.
- */
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Explicitly extend Component from 'react' to resolve property access errors in TypeScript
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -127,7 +124,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    // Fix: access state and props via 'this'
+    // Fix: Correctly access this.state and this.props within the class component
     const { hasError } = this.state;
     const { children } = this.props;
 
@@ -137,8 +134,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 text-center w-80">
             <div className="text-red-500 font-bold mb-2 text-lg">Loading Failed</div>
             <p className="text-sm text-gray-500 mb-4">Unable to load the 3D model. Please check the URL or your connection.</p>
+            {/* Fix: Using this.setState within class component context */}
             <button 
-                // Fix: access setState via 'this'
                 onClick={() => this.setState({ hasError: false, error: null })} 
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition"
             >
@@ -204,7 +201,6 @@ const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureM
         const material = mesh.material as THREE.MeshStandardMaterial;
         if (config.color) material.color.set(config.color);
         else material.color.setHex(0xffffff);
-        (material as any).description = "PBR Material configuration";
         material.roughness = config.roughness;
         material.metalness = config.metalness;
         material.opacity = config.opacity;
@@ -229,8 +225,6 @@ const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureM
                 material.map.rotation = (config.rotation * Math.PI) / 180;
                 material.map.offset.set(config.offsetX, config.offsetY);
             }
-        } else if (config.url) {
-            console.warn("Unsafe URL blocked:", config.url);
         } else {
             material.map = null;
             mesh.userData.currentTextureUrl = null;
@@ -294,6 +288,7 @@ interface ModelViewerProps {
   selectedPart: SelectedPart | null;
   onPartSelect: (part: SelectedPart | null) => void;
   textureMap: Record<string, TextureConfig | null>;
+  activeTexture?: TextureItem | null; 
   envPreset: string;
   envIntensity: number;
   envRotation: number;
@@ -304,7 +299,7 @@ interface ModelViewerProps {
 }
 
 const ModelViewer = React.forwardRef<any, ModelViewerProps>(({ 
-    modelFile, selectedPart, onPartSelect, textureMap, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate
+    modelFile, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate
 }, ref) => {
   const [modelUrl, setModelUrl] = useState<string>(DEFAULT_MODEL_URL);
   const controlsRef = useRef<any>(null);
@@ -371,19 +366,38 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         <div className={`
             absolute left-1/2 -translate-x-1/2 z-10 
             transition-all duration-500 ease-out animate-in fade-in slide-in-from-top-4
-            flex items-center gap-3 px-6 py-2.5 rounded-full
-            bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_rgba(0,0,0,0.05)]
-            /* 強制內容不換行，解決不同手機瀏覽器的顯示差異 */
-            whitespace-nowrap
-            /* 行動版：避開頂部 Header，保持在視覺中心上方 */
-            top-[max(110px,18dvh)]
-            /* 電腦版：標準邊距 */
+            flex flex-col items-center gap-4 w-full px-8 max-w-xl text-center
+            top-[max(86px,10dvh)]
             lg:top-32
         `}>
-          <span className="w-2.5 h-2.5 shrink-0 rounded-full bg-indigo-500 animate-pulse"></span>
-          <span className="text-[10px] lg:text-[11px] font-black tracking-[0.2em] uppercase text-gray-900 leading-none">
-            EDITING <span className="text-indigo-600 ml-1">{selectedPart.name}</span>
-          </span>
+          {/* Part Label - Identifies what is being edited */}
+          <div className="flex items-center gap-3 px-6 py-2.5 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_rgba(0,0,0,0.05)] whitespace-nowrap">
+            <span className="w-2.5 h-2.5 shrink-0 rounded-full bg-indigo-500 animate-pulse"></span>
+            <span className="text-[10px] lg:text-[11px] font-black tracking-[0.2em] uppercase text-gray-900 leading-none">
+              EDITING <span className="text-indigo-600 ml-1">{selectedPart.name}</span>
+            </span>
+          </div>
+
+          {/* Material Detailed Information - Box-less typography focused design */}
+          {activeTexture && (
+            <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-700 delay-150">
+                <h2 className="text-[18px] lg:text-[24px] font-black tracking-tighter text-gray-900 uppercase">
+                    {activeTexture.title || activeTexture.name}
+                </h2>
+                <p className="text-[11px] lg:text-[13px] text-gray-500 font-medium leading-relaxed max-w-sm">
+                    {activeTexture.description}
+                </p>
+                {/* Unified Link style for all materials */}
+                <a 
+                  href={activeTexture.link || "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786"} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="mt-2 text-[10px] text-indigo-600 font-black uppercase tracking-widest underline underline-offset-8 decoration-indigo-200 hover:decoration-indigo-600 transition-all pointer-events-auto"
+                >
+                    Read more
+                </a>
+            </div>
+          )}
         </div>
       )}
     </div>

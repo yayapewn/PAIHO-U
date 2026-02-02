@@ -1,7 +1,11 @@
+
 export interface TextureItem {
   id: string;
   name: string;
   url: string; // Blob URL or Data URL
+  title?: string;
+  description?: string;
+  link?: string;
 }
 
 export interface TextureConfig {
