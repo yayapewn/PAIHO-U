@@ -1,99 +1,218 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { X, RotateCw, Share2, Download, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2 } from 'lucide-react';
+import { X, RotateCw, Share2, Download, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor } from 'lucide-react';
 import ModelViewer from './components/ModelViewer';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
 
-// Uniform link for all materials
 const UNIFORM_LINK = "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786";
 
-// Mock Data with mandatory Title, Description, and the specific Paiho Hub Link
-const VAMP_TEXTURES: TextureItem[] = [
+const MODELS = [
   { 
-    id: 'v1', name: 'Fine Fabric 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg',
-    title: '4-WAY STRETCH FABRIC',
-    description: 'A dynamic stretchable fabric providing high flexibility and comfort for peak performance.',
-    link: UNIFORM_LINK
+    id: 'lace', 
+    name: 'Lace-shoe', 
+    url: 'https://huggingface.co/yayapewn/huggingface/resolve/main/lace-shoe.glb',
+    scale: 2,
+    rotation: [0, Math.PI, 0] as [number, number, number],
+    position: [0, 0, 0] as [number, number, number],
+    initialEnvRotation: 280
   },
   { 
-    id: 'v2', name: 'Woven Fabric 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg',
-    title: 'ENGINEERED JACQUARD',
-    description: 'Intricately woven patterns designed for strategic support and maximum breathability.',
-    link: UNIFORM_LINK
+    id: 'traveler', 
+    name: 'Traveler-shoe', 
+    url: 'https://huggingface.co/yayapewn/huggingface/resolve/main/Traveler-shoe.glb',
+    scale: 1.53, 
+    rotation: [-0.3, Math.PI * 2.5, 0] as [number, number, number], 
+    position: [0, 0.03, 0] as [number, number, number], 
+    initialEnvRotation: 280
   },
   { 
-    id: 'v3', name: 'Tech Mesh 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg',
-    title: 'AERO-VENT MESH',
-    description: 'Lightweight mesh engineered with open structures to ensure optimal cooling during activity.',
-    link: UNIFORM_LINK
-  },
-  { 
-    id: 'v4', name: 'Durable 04', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg', 
-    title: 'HEAVY DUTY NYLON', 
-    description: 'Abrasion-resistant nylon blend crafted for rugged environments and longevity.',
-    link: UNIFORM_LINK
-  },
-  { 
-    id: 'v5', name: 'Breathable 05', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', 
-    title: 'ECO-KNIT MATERIAL', 
-    description: 'Sustainable yarn choice offering a soft touch and reduced environmental impact.',
-    link: UNIFORM_LINK
-  },
-  { 
-    id: 'v6', name: 'Digital 06', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01436-01A-000A_BASE.jpg', 
-    title: 'DIGITAL PRINT 3D', 
-    description: 'Vibrant 3D printed texture for a futuristic and personalized aesthetic.',
-    link: UNIFORM_LINK
-  },
+    id: 'dna', 
+    name: 'D.N.A-shoe', 
+    url: null,
+    scale: 2,
+    rotation: [0, Math.PI, 0] as [number, number, number],
+    position: [0, 0, 0] as [number, number, number],
+    initialEnvRotation: 280
+  }
 ];
 
-const SHOELACE_TEXTURES: TextureItem[] = [
-  { 
-    id: 's1', name: 'Lace Texture 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg', 
-    title: 'TECH-CORD LACES', 
-    description: 'High-tensile braided laces designed for a secure and consistent lockdown.',
-    link: UNIFORM_LINK
-  },
-  { 
-    id: 's2', name: 'Lace Texture 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg', 
-    title: 'FLAT RIBBON WEAVE', 
-    description: 'Traditional flat-style laces for a classic look and smooth feel.',
-    link: UNIFORM_LINK
-  },
-  { 
-    id: 's3', name: 'Lace Texture 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', 
-    title: 'REFLECTIVE NIGHT', 
-    description: 'Integrated reflective fibers for increased safety during low-light conditions.',
-    link: UNIFORM_LINK
-  },
+const GENERAL_TEXTURES: TextureItem[] = [
+  { id: 'v1', name: 'Fine Fabric 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg', title: '4-WAY STRETCH FABRIC', description: 'A dynamic stretchable fabric providing high flexibility and comfort for peak performance.', link: UNIFORM_LINK },
+  { id: 'v2', name: 'Woven Fabric 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg', title: 'ENGINEERED JACQUARD', description: 'Intricately woven patterns designed for strategic support and maximum breathability.', link: UNIFORM_LINK },
+  { id: 'v3', name: 'Tech Mesh 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg', title: 'AERO-VENT MESH', description: 'Lightweight mesh engineered with open structures to ensure optimal cooling during activity.', link: UNIFORM_LINK },
+  { id: 'v4', name: 'Durable 04', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg', title: 'HEAVY DUTY NYLON', description: 'Abrasion-resistant nylon blend crafted for rugged environments and longevity.', link: UNIFORM_LINK },
+  { id: 'v5', name: 'Breathable 05', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', title: 'ECO-KNIT MATERIAL', description: 'Sustainable yarn choice offering a soft touch and reduced environmental impact.', link: UNIFORM_LINK },
+  { id: 'v6', name: 'Digital 06', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01436-01A-000A_BASE.jpg', title: 'DIGITAL PRINT 3D', description: 'Vibrant 3D printed texture for a futuristic and personalized aesthetic.', link: UNIFORM_LINK },
 ];
 
-const LABEL_TEXTURES: TextureItem[] = [
-  { 
-    id: 'l1', name: 'Leather', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg', 
-    title: 'PREMIUM MICRO-LEATHER', 
-    description: 'High-grade synthetic leather providing a premium look with lightweight properties.',
-    link: UNIFORM_LINK
-  },
-  { 
-    id: 'l2', name: 'Carbon Fiber', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', 
-    title: 'TECH CARBON FINISH', 
-    description: 'Lightweight reinforcement pattern inspired by aerospace engineering.',
-    link: UNIFORM_LINK
-  },
-  { 
-    id: 'l3', name: 'Matte Finish', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg', 
-    title: 'SOFT-TOUCH MATTE', 
-    description: 'Non-reflective matte surface that is smooth to the touch and scratch-resistant.',
-    link: UNIFORM_LINK
-  },
-];
+// --- Color Conversion Helpers ---
+const hsvToRgb = (h: number, s: number, v: number) => {
+  s /= 100; v /= 100;
+  const i = Math.floor(h / 60);
+  const f = h / 60 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  let r = 0, g = 0, b = 0;
+  switch (i % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    case 5: r = v; g = p; b = q; break;
+  }
+  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+};
+
+const rgbToHex = (r: number, g: number, b: number) => {
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+};
+
+const hexToRgb = (hex: string) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : { r: 255, g: 255, b: 255 };
+};
+
+const rgbToHsv = (r: number, g: number, b: number) => {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, v = max;
+  const d = max - min;
+  s = max === 0 ? 0 : d / max;
+  if (max !== min) {
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return { h: h * 360, s: s * 100, v: v * 100 };
+};
+
+/**
+ * 專業級直覺檢色器
+ */
+const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void }> = ({ color, onChange }) => {
+  const rgb = useMemo(() => hexToRgb(color), [color]);
+  const [hsv, setHsv] = useState(() => rgbToHsv(rgb.r, rgb.g, rgb.b));
+
+  useEffect(() => {
+    const currentHex = rgbToHex(rgb.r, rgb.g, rgb.b);
+    if (currentHex !== color) {
+       setHsv(rgbToHsv(rgb.r, rgb.g, rgb.b));
+    }
+  }, [color, rgb]);
+
+  const updateHsv = (updates: Partial<{h:number, s:number, v:number}>) => {
+    setHsv(prev => {
+        const next = { ...prev, ...updates };
+        const newRgb = hsvToRgb(next.h, next.s, next.v);
+        const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+        if (newHex !== color) onChange(newHex);
+        return next;
+    });
+  };
+
+  const hsRef = useRef<HTMLDivElement>(null);
+  const vRef = useRef<HTMLDivElement>(null);
+
+  const handlePointerDownHS = (e: React.PointerEvent) => {
+    if (!hsRef.current) return;
+    const rect = hsRef.current.getBoundingClientRect();
+    const update = (clientX: number, clientY: number) => {
+      const h = Math.max(0, Math.min(360, ((clientX - rect.left) / rect.width) * 360));
+      const s = Math.max(0, Math.min(100, (1 - (clientY - rect.top) / rect.height) * 100));
+      updateHsv({ h, s });
+    };
+    update(e.clientX, e.clientY);
+    const onMove = (m: PointerEvent) => update(m.clientX, m.clientY);
+    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const handlePointerDownV = (e: React.PointerEvent) => {
+    if (!vRef.current) return;
+    const rect = vRef.current.getBoundingClientRect();
+    const update = (clientY: number) => {
+      const v = Math.max(0, Math.min(100, (1 - (clientY - rect.top) / rect.height) * 100));
+      updateHsv({ v });
+    };
+    update(e.clientY);
+    const onMove = (m: PointerEvent) => update(m.clientY);
+    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  return (
+    <div className="flex flex-col gap-6 animate-in fade-in duration-700">
+      <div className="flex gap-4 items-stretch">
+        {/* HS 調色盤 - 高度減少 1/3，使用 3:2 比例 */}
+        <div 
+          ref={hsRef}
+          className="relative flex-1 aspect-[3/2] rounded-[24px] cursor-crosshair overflow-hidden touch-none"
+          style={{ 
+            background: `
+              linear-gradient(to bottom, transparent, #fff),
+              linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)
+            ` 
+          }}
+          onPointerDown={handlePointerDownHS}
+        >
+          <div 
+            className="absolute w-5 h-5 border-2 border-white rounded-full shadow-lg -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ left: `${(hsv.h / 360) * 100}%`, top: `${100 - hsv.s}%` }}
+          ></div>
+        </div>
+
+        <div 
+          ref={vRef}
+          className="relative w-5 rounded-full cursor-pointer touch-none"
+          style={{ 
+              background: `linear-gradient(to bottom, ${rgbToHex(hsvToRgb(hsv.h, hsv.s, 100).r, hsvToRgb(hsv.h, hsv.s, 100).g, hsvToRgb(hsv.h, hsv.s, 100).b)}, #000)` 
+          }}
+          onPointerDown={handlePointerDownV}
+        >
+          <div 
+            className="absolute left-1/2 -translate-x-1/2 w-5 h-5 bg-white border border-gray-100 rounded-full shadow-md -translate-y-1/2 pointer-events-none"
+            style={{ top: `${100 - hsv.v}%` }}
+          ></div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[1fr_0.8fr] gap-4">
+          <div className="space-y-1.5">
+              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block ml-1">HEX CODE</span>
+              <div className="bg-gray-50 rounded-xl px-4 py-3 border border-transparent focus-within:border-indigo-100 transition-all flex items-center h-[52px]">
+                  <input 
+                    type="text" 
+                    defaultValue={color} 
+                    key={color}
+                    onChange={(e) => {
+                        let val = e.target.value.trim().toUpperCase();
+                        if (/^#[0-9A-F]{6}$/i.test(val)) onChange(val);
+                    }}
+                    className="bg-transparent border-none outline-none w-full text-[13px] font-black uppercase tracking-tight text-gray-700" 
+                  />
+              </div>
+          </div>
+          <div className="flex items-end">
+              <div className="w-full h-[52px] bg-gray-50 rounded-xl overflow-hidden shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]" style={{ backgroundColor: color }}></div>
+          </div>
+      </div>
+    </div>
+  );
+};
 
 const App: React.FC = () => {
-  const [libraries, setLibraries] = useState({ vamp: VAMP_TEXTURES, shoelace: SHOELACE_TEXTURES, label: LABEL_TEXTURES });
+  const [activeModelIndex, setActiveModelIndex] = useState(0);
+  const [libraries, setLibraries] = useState({ materials: GENERAL_TEXTURES });
   const [selectedPart, setSelectedPart] = useState<SelectedPart | null>(null);
   const [activeTexture, setActiveTexture] = useState<TextureItem | null>(null);
   const [envIntensity, setEnvIntensity] = useState<number>(1.5); 
-  const [envRotation, setEnvRotation] = useState<number>(280); 
+  const [envRotation, setEnvRotation] = useState<number>(MODELS[0].initialEnvRotation); 
   const [autoRotate, setAutoRotate] = useState<boolean>(false);
   const [partTextures, setPartTextures] = useState<Record<string, TextureConfig | null>>({});
 
@@ -102,38 +221,77 @@ const App: React.FC = () => {
   const [isGeneratingScreenshot, setIsGeneratingScreenshot] = useState(false);
   
   const [isPanelVisible, setIsPanelVisible] = useState(false);
+  const [orientationError, setOrientationError] = useState<'mobile-portrait' | 'tablet-landscape' | null>(null);
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+  const [toast, setToast] = useState<string | null>(null);
 
   const modelViewerRef = useRef<any>(null);
+  const currentModel = MODELS[activeModelIndex];
 
-  const handleTextureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (!file.type.startsWith('image/')) return alert('Invalid image file.');
-      const url = URL.createObjectURL(file);
-      setLibraries(prev => ({ 
-          ...prev, 
-          vamp: [{ 
-            id: crypto.randomUUID(), 
-            name: file.name, 
-            url, 
-            title: 'CUSTOM UPLOAD', 
-            description: 'Personalized material uploaded by the user.', 
-            link: UNIFORM_LINK 
-          }, ...prev.vamp] 
-      }));
+  useEffect(() => {
+    const checkOrientation = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const isPortrait = height > width;
+      const isMobile = width < 768;
+      const isTablet = width >= 768 && width < 1280;
+      
+      setIsMobileView(isMobile);
+
+      if (isMobile && !isPortrait) setOrientationError('mobile-portrait');
+      else if (isTablet && isPortrait) setOrientationError('tablet-landscape');
+      else setOrientationError(null);
+    };
+    window.addEventListener('resize', checkOrientation);
+    checkOrientation();
+    return () => window.removeEventListener('resize', checkOrientation);
+  }, []);
+
+  const handleModelSwitch = (index: number) => {
+    if (!MODELS[index].url) {
+      setToast("COMING SOON");
+      setTimeout(() => setToast(null), 3000);
+      return;
     }
+    setActiveModelIndex(index);
+    setEnvRotation(MODELS[index].initialEnvRotation);
+    setSelectedPart(null);
+    setActiveTexture(null);
+    setPartTextures({});
+  };
+
+  const isLibrarySupported = (partName: string) => {
+    if (!partName) return false;
+    const name = partName.toUpperCase();
+    return !['TONGUE', 'MIDSOLE', 'OUTSOLE'].includes(name);
   };
 
   const applyTexture = (texture: TextureItem) => {
-    if (!selectedPart) return;
+    if (!selectedPart || !isLibrarySupported(selectedPart.name)) return;
     setActiveTexture(texture);
     setPartTextures(prev => {
       const existing = prev[selectedPart.id];
       if (existing) return { ...prev, [selectedPart.id]: { ...existing, url: texture.url } };
-      return { 
-        [selectedPart.id]: { url: texture.url, scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 },
-        ...prev
-      };
+      return { ...prev, [selectedPart.id]: { url: texture.url, scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 } };
+    });
+  };
+
+  const removeTexture = () => {
+    if (!selectedPart) return;
+    setActiveTexture(null);
+    setPartTextures(prev => {
+      const config = prev[selectedPart.id];
+      if (!config) return prev;
+      return { ...prev, [selectedPart.id]: { ...config, url: '' } };
+    });
+  };
+
+  const removeColor = () => {
+    if (!selectedPart) return;
+    setPartTextures(prev => {
+      const config = prev[selectedPart.id];
+      if (!config) return prev;
+      return { ...prev, [selectedPart.id]: { ...config, color: '#ffffff' } };
     });
   };
 
@@ -145,8 +303,19 @@ const App: React.FC = () => {
       });
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsShareModalOpen(true);
+    setIsGeneratingScreenshot(true);
+    setTimeout(async () => {
+        const dataUrl = await modelViewerRef.current?.captureComposition();
+        setScreenshotUrl(dataUrl);
+        setIsGeneratingScreenshot(false);
+    }, 500);
+  };
+
   const currentTextureConfig = selectedPart ? partTextures[selectedPart.id] : null;
-  const currentColorHex = currentTextureConfig?.color || '#ffffff';
+  const currentColorHex = (currentTextureConfig?.color || '#ffffff').toUpperCase();
 
   const mappedTextureMap = useMemo(() => {
     const mapped: Record<string, TextureConfig | null> = {};
@@ -158,23 +327,12 @@ const App: React.FC = () => {
     return mapped;
   }, [partTextures]);
 
-  const visibleLibs = useMemo(() => {
-    if (!selectedPart) return { vamp: false, shoelace: false, label: false };
-    const name = selectedPart.name;
-    return {
-        vamp: name.includes('Shape027'),
-        shoelace: name.includes('Shape026'),
-        label: name.includes('Line040')
-    };
-  }, [selectedPart]);
-
   useEffect(() => {
     if (selectedPart) {
       setIsPanelVisible(true);
       const currentUrl = partTextures[selectedPart.id]?.url;
       if (currentUrl) {
-          const allTextures = [...libraries.vamp, ...libraries.shoelace, ...libraries.label];
-          const match = allTextures.find(t => t.url === currentUrl);
+          const match = libraries.materials.find(t => t.url === currentUrl);
           setActiveTexture(match || null);
       } else {
           setActiveTexture(null);
@@ -183,65 +341,70 @@ const App: React.FC = () => {
   }, [selectedPart, partTextures, libraries]);
 
   const asideClasses = useMemo(() => {
-    // 側邊欄層次 z-[60] 低於 Header 的 z-[70]
     const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible shadow-[0_-15px_60px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]";
+    let mobileState = "bottom-0 left-0 w-full h-[32dvh] rounded-t-[42px] md:rounded-none";
     
-    let mobileState = "bottom-0 left-0 w-full h-[24dvh] rounded-t-[42px] lg:rounded-none";
-    if (selectedPart) {
-        mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
-    } else {
-        mobileState += " translate-y-full";
-    }
-
-    let desktopState = "lg:top-0 lg:bottom-0 lg:right-0 lg:left-auto lg:h-full lg:w-[420px] lg:border-l lg:border-gray-50 lg:translate-y-0";
-    if (selectedPart) {
-        desktopState += isPanelVisible ? " lg:translate-x-0" : " lg:translate-x-full";
-    } else {
-        desktopState += " lg:translate-x-full";
-    }
+    if (selectedPart) mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
+    else mobileState += " translate-y-full";
+    
+    // 平板範圍 (768px ~ 1279px): 360px
+    // 電腦範圍 (1280px 以上): 400px
+    let desktopState = "md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-full md:w-[320px] xl:w-[400px] md:border-l md:border-gray-50 md:translate-y-0";
+    if (selectedPart) desktopState += isPanelVisible ? " md:translate-x-0" : " md:translate-x-full";
+    else desktopState += " md:translate-x-full";
+    
     return `${base} ${mobileState} ${desktopState}`;
   }, [selectedPart, isPanelVisible]);
 
   return (
     <div className="flex flex-col h-[100dvh] bg-white text-[#1a1a1a] overflow-hidden font-sans">
-      {/* Header 層次 z-[70] 高於 Aside 側邊欄 */}
-      <header className="absolute top-0 left-0 right-0 flex items-center justify-between pl-8 pr-6 lg:pl-10 pt-[max(1rem,env(safe-area-inset-top))] pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 shrink-0 z-[70]">
-        <div className="flex items-center gap-3">
-          <h1 className="text-[20px] lg:text-[25px] font-black tracking-tighter uppercase leading-none">
-            PAIHO <span className="text-indigo-600">:</span> U
-          </h1>
+      
+      {orientationError && (
+        <div className="fixed inset-0 z-[200] bg-white flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+          <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mb-8 animate-pulse">
+            {orientationError === 'mobile-portrait' ? <Smartphone size={48} className="text-indigo-600 rotate-90" /> : <Monitor size={48} className="text-indigo-600" />}
+          </div>
+          <h2 className="text-2xl font-black uppercase tracking-tighter mb-4">{orientationError === 'mobile-portrait' ? 'Please Rotate to Portrait' : 'Please Rotate to Landscape'}</h2>
+          <p className="text-sm text-gray-500 font-medium max-w-xs leading-relaxed">{orientationError === 'mobile-portrait' ? 'This mobile experience is optimized for portrait view.' : 'This tablet experience is optimized for landscape view.'}</p>
         </div>
-        <div className="flex items-center gap-3">
-            <button 
-                onClick={async (e) => {
-                    e.stopPropagation();
-                    setIsShareModalOpen(true);
-                    setIsGeneratingScreenshot(true);
-                    setTimeout(async () => {
-                        const dataUrl = await modelViewerRef.current?.captureComposition();
-                        setScreenshotUrl(dataUrl);
-                        setIsGeneratingScreenshot(false);
-                    }, 500);
-                }} 
-                className="flex items-center gap-2 px-4 py-2 bg-transparent text-black border border-black rounded-full text-xs font-black uppercase tracking-widest transition-all hover:bg-black hover:text-white active:scale-95 shadow-sm"
-            >
-                <Share2 size={14} /> <span className="hidden sm:inline">Share</span>
-            </button>
-            <button 
-                onClick={(e) => { e.stopPropagation(); setAutoRotate(!autoRotate); }} 
-                className={`flex items-center gap-2 px-4 py-2 border rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm ${autoRotate ? 'bg-black border-black text-white' : 'bg-transparent border-black text-black hover:bg-black hover:text-white'}`}
-            >
-                <RotateCw size={14} className={autoRotate ? 'animate-spin' : ''} />
-                <span className="hidden sm:inline">Rotate</span>
-            </button>
+      )}
+
+      {toast && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-black text-white rounded-full text-[10px] font-black tracking-[0.3em] uppercase animate-in slide-in-from-top-8 duration-500 shadow-2xl">
+          {toast}
         </div>
-      </header>
+      )}
 
       <div className="relative flex-1">
+        <nav className="absolute top-8 left-1/2 -translate-x-1/2 z-[50] flex items-center p-1.5 bg-white/60 backdrop-blur-2xl border border-white/50 rounded-full shadow-[0_15px_50px_rgba(0,0,0,0.06)]">
+          {MODELS.map((model, idx) => (
+            <button
+              key={model.id}
+              onClick={() => handleModelSwitch(idx)}
+              className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              {model.name}
+              {activeModelIndex === idx && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-indigo-600 rounded-full animate-pulse"></span>}
+            </button>
+          ))}
+          <div className="w-[1px] h-4 bg-gray-300/50 mx-1"></div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setAutoRotate(!autoRotate); }}
+            className={`w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 ${autoRotate ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
+            title="Toggle Auto Rotate"
+          >
+            <RotateCw size={15} className={autoRotate ? 'animate-spin' : ''} style={{ animationDuration: '3s' }} />
+          </button>
+        </nav>
+
         <main className="fixed inset-0 z-0 bg-[#f8f9fa]">
            <ModelViewer 
              ref={modelViewerRef} 
-             modelFile={null} 
+             url={currentModel.url!} 
+             modelId={currentModel.id}
+             modelScale={isMobileView ? currentModel.scale * 0.5 : currentModel.scale} 
+             modelRotation={currentModel.rotation}
+             modelPosition={currentModel.position}
              selectedPart={selectedPart} 
              onPartSelect={setSelectedPart}
              textureMap={mappedTextureMap} 
@@ -251,12 +414,12 @@ const App: React.FC = () => {
              envRotation={envRotation} 
              dirLightRotation={104}
              shadowBlur={0.25}
-             shadowNormalBias={0.2}
+             shadowNormalBias={0.4}
              autoRotate={autoRotate}
            />
 
            {(!selectedPart) && (
-             <div className="absolute inset-0 flex items-end justify-center pb-[max(5rem,18dvh)] pointer-events-none animate-in fade-in zoom-in-95 duration-700">
+             <div className="absolute inset-0 flex items-end justify-center pb-[max(6rem,18dvh)] pointer-events-none animate-in fade-in zoom-in-95 duration-700">
                <div className="flex flex-col items-center gap-4">
                   <div className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-2xl border border-white animate-bounce">
                     <MousePointer2 size={28} className="text-indigo-600" />
@@ -271,121 +434,98 @@ const App: React.FC = () => {
             {selectedPart && (
               <button 
                 onClick={(e) => { e.stopPropagation(); setIsPanelVisible(!isPanelVisible); }}
-                className={`
-                  hidden lg:flex absolute top-1/2 -translate-y-1/2 -left-10 z-50 items-center justify-center
-                  w-10 h-24 bg-white border border-gray-100 shadow-[-10px_0_30px_rgba(0,0,0,0.08)] rounded-l-2xl transition-all duration-500
-                  hover:bg-gray-50 text-gray-400 hover:text-indigo-600
-                `}
+                className="hidden md:flex absolute top-1/2 -translate-y-1/2 -left-10 z-50 items-center justify-center w-10 h-24 bg-white border border-gray-100 shadow-[-10px_0_30px_rgba(0,0,0,0.08)] rounded-l-2xl transition-all duration-500 hover:bg-gray-50 text-gray-400 hover:text-indigo-600"
               >
                 {isPanelVisible ? <ChevronRight size={20} strokeWidth={3} /> : <ChevronLeft size={20} strokeWidth={3} />}
               </button>
             )}
 
             {selectedPart && (
-              <div className="lg:hidden absolute left-1/2 -translate-x-1/2 -top-[28px] w-24 h-8 flex items-end justify-center pointer-events-none">
+              <div className="md:hidden absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full px-2">
                  <button 
                   onClick={(e) => { e.stopPropagation(); setIsPanelVisible(!isPanelVisible); }}
-                  className={`
-                    pointer-events-auto flex items-center justify-center
-                    w-16 h-8 bg-white border-t border-l border-r border-gray-100 rounded-t-[20px] transition-all duration-500
-                    text-gray-300 hover:text-indigo-600 active:scale-95
-                    relative top-[2px] z-[70] shadow-none
-                  `}
+                  className="w-20 h-10 bg-white border-t border-x border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] rounded-t-2xl flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-all duration-500"
                 >
-                  {isPanelVisible ? <ChevronDown size={20} strokeWidth={3} /> : <ChevronUp size={20} strokeWidth={3} />}
+                   {isPanelVisible ? <ChevronDown size={20} strokeWidth={3} /> : <ChevronUp size={20} strokeWidth={3} />}
                 </button>
               </div>
             )}
 
-            {/* 修正重點：桌面版增加 pt-32 (128px) 確保標題避開被 Header 遮擋 */}
-            <div className="flex-1 overflow-y-auto no-scrollbar px-7 pb-12 pt-8 lg:px-10 lg:pt-32 lg:pb-10 space-y-8 lg:space-y-12">
-                {selectedPart ? (
-                    <div key={selectedPart.id} className="space-y-8 animate-in fade-in slide-in-from-bottom-8 lg:slide-in-from-right-10 duration-700">
-                        {(visibleLibs.vamp || visibleLibs.label) && (
+            <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-10 pt-8 md:px-7 md:pt-12 md:pb-10 flex flex-col h-full">
+                <div className="flex-1 space-y-10 md:space-y-12">
+                    {selectedPart ? (
+                        <div key={selectedPart.id} className="space-y-10 md:space-y-12 animate-in fade-in slide-in-from-bottom-8 md:slide-in-from-right-10 duration-700">
+                            
+                            {/* 材料庫部分 */}
+                            {isLibrarySupported(selectedPart.name) && (
+                              <section>
+                                  <div className="flex justify-between items-center mb-5 px-1">
+                                      <div className="flex flex-col gap-1.5">
+                                          <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Library</h3>
+                                          <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
+                                      </div>
+                                      <button onClick={removeTexture} className="p-1 text-gray-400 hover:text-red-500 transition-colors" title="Remove Texture">
+                                          <X size={18} strokeWidth={3} />
+                                      </button>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-2 md:gap-3 px-1">
+                                      {libraries.materials.map(t => (
+                                          <button key={t.id} onClick={(e) => { e.stopPropagation(); applyTexture(t); }} className={`aspect-square rounded-[22px] overflow-hidden transition-all border-2 group ${currentTextureConfig?.url === t.url ? 'border-indigo-600 scale-[0.98] shadow-xl shadow-indigo-100/30' : 'border-transparent bg-gray-50 hover:border-gray-100'}`}>
+                                              <img src={t.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={t.name} />
+                                          </button>
+                                      ))}
+                                  </div>
+                              </section>
+                            )}
+
+                            {/* 專業級檢色器部分 */}
                             <section>
-                                <div className="flex justify-between items-end mb-5 px-1">
-                                    <div className="flex flex-col gap-2">
-                                        <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Materials</h3>
-                                        <div className="w-10 h-[2.5px] bg-indigo-600 rounded-full mt-1"></div>
+                                <div className="flex justify-between items-center mb-6 px-1">
+                                    <div className="flex flex-col gap-1.5">
+                                        <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Spectrum</h3>
+                                        <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                     </div>
-                                    <label className="text-[9px] cursor-pointer text-indigo-600 font-black uppercase tracking-widest hover:underline border border-indigo-50 bg-indigo-50/20 px-4 py-1.5 rounded-full shadow-sm">
-                                        Upload <input type="file" className="hidden" onChange={handleTextureUpload} />
-                                    </label>
+                                    <button onClick={removeColor} className="p-1 text-gray-400 hover:text-red-500 transition-colors" title="Remove Color">
+                                        <X size={18} strokeWidth={3} />
+                                    </button>
                                 </div>
-                                <div className="bg-gray-50/50 p-5 rounded-[28px] border border-gray-100/80 shadow-sm">
-                                    <div className="grid grid-cols-4 gap-2 lg:gap-4">
-                                        {(visibleLibs.vamp ? libraries.vamp : libraries.label).map(t => (
-                                            <button 
-                                                key={t.id} 
-                                                onClick={(e) => { e.stopPropagation(); applyTexture(t); }} 
-                                                className={`aspect-square rounded-[22px] overflow-hidden transition-all border-2 group ${currentTextureConfig?.url === t.url ? 'border-indigo-600 scale-[0.96] shadow-xl shadow-indigo-100/50' : 'border-transparent bg-white hover:border-gray-200 shadow-sm'}`}
-                                            >
-                                                <img src={t.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={t.name} />
-                                            </button>
-                                        ))}
+                                <div className="px-1">
+                                    <ProColorPicker color={currentColorHex} onChange={(hex) => updateTextureConfig('color', hex)} />
+                                </div>
+                            </section>
+
+                            {/* 環境設定部分 */}
+                            <section>
+                                 <div className="flex flex-col gap-1.5 mb-5 px-1">
+                                    <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Atmosphere</h3>
+                                    <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
+                                </div>
+                                <div className="space-y-10 px-1">
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                            <span>Brightness</span>
+                                            <span className="text-indigo-600">{envIntensity.toFixed(1)}</span>
+                                        </div>
+                                        <input type="range" min="0" max="5" step="0.1" value={envIntensity} onChange={(e) => { e.stopPropagation(); setEnvIntensity(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                            <span>Sun Rotation</span>
+                                            <span className="text-indigo-600">{Math.round(envRotation)}°</span>
+                                        </div>
+                                        <input type="range" min="0" max="360" step="1" value={envRotation} onChange={(e) => { e.stopPropagation(); setEnvRotation(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer" />
                                     </div>
                                 </div>
                             </section>
-                        )}
-                        {visibleLibs.shoelace && (
-                            <section>
-                                <div className="flex flex-col gap-2 mb-5 px-1">
-                                    <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Palette Selection</h3>
-                                    <div className="w-10 h-[2.5px] bg-indigo-600 rounded-full mt-1"></div>
-                                </div>
-                                <div className="bg-gray-50/50 p-6 lg:p-7 rounded-[28px] flex items-center justify-between gap-4 border border-gray-100/80 shadow-sm">
-                                    <div className="flex items-center gap-7">
-                                        <div className="relative w-16 h-16 rounded-[24px] overflow-hidden shadow-inner border-[4px] border-white">
-                                            <input 
-                                                type="color" 
-                                                value={currentColorHex} 
-                                                onChange={(e) => {
-                                                  e.stopPropagation();
-                                                  updateTextureConfig('color', e.target.value);
-                                                }} 
-                                                className="absolute inset-0 w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4 cursor-pointer" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <p className="text-[16px] font-black text-gray-900 uppercase tracking-tighter leading-none">{currentColorHex}</p>
-                                            <p className="text-[9.5px] text-gray-400 uppercase tracking-[0.12em] font-black mt-2.5">Current Shade</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
-                        )}
-                        <section>
-                             <div className="flex flex-col gap-2 mb-5 px-1">
-                                <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Atmosphere</h3>
-                                <div className="w-10 h-[2.5px] bg-indigo-600 rounded-full mt-1"></div>
-                            </div>
-                            <div className="space-y-10 bg-gray-50/50 p-6 lg:p-7 rounded-[28px] border border-gray-100/80 shadow-sm">
-                                <div className="space-y-5">
-                                    <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                        <span>Brightness</span>
-                                        <span className="text-indigo-600 font-black">{envIntensity.toFixed(1)}</span>
-                                    </div>
-                                    <input 
-                                      type="range" min="0" max="5" step="0.1" value={envIntensity} 
-                                      onChange={(e) => { e.stopPropagation(); setEnvIntensity(parseFloat(e.target.value)); }} 
-                                      className="w-full accent-indigo-600 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer" 
-                                    />
-                                </div>
-                                <div className="space-y-5">
-                                    <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                        <span>Sun Rotation</span>
-                                        <span className="text-indigo-600 font-black">{Math.round(envRotation)}°</span>
-                                    </div>
-                                    <input 
-                                      type="range" min="0" max="360" step="1" value={envRotation} 
-                                      onChange={(e) => { e.stopPropagation(); setEnvRotation(parseFloat(e.target.value)); }} 
-                                      className="w-full accent-indigo-600 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer" 
-                                    />
-                                </div>
-                            </div>
-                        </section>
-                    </div>
-                ) : null}
+                        </div>
+                    ) : null}
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-gray-100 shrink-0">
+                    <button onClick={handleShare} className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-black text-white rounded-[24px] text-[10px] font-black uppercase tracking-[0.2em] transition-all hover:bg-gray-800 active:scale-95 shadow-lg shadow-black/10">
+                        <Share2 size={16} /> <span>Share Design</span>
+                    </button>
+                </div>
             </div>
           </aside>
       </div>
@@ -398,9 +538,7 @@ const App: React.FC = () => {
                         <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">The Masterpiece</h2>
                         <p className="text-[10px] text-indigo-500 font-black tracking-[0.5em] uppercase mt-2">Captured in Ultra High Definition</p>
                     </div>
-                    <button onClick={() => setIsShareModalOpen(false)} className="p-4 hover:bg-gray-100 rounded-full transition-all text-gray-400 active:scale-90">
-                        <X size={28}/>
-                    </button>
+                    <button onClick={() => setIsShareModalOpen(false)} className="p-4 hover:bg-gray-100 rounded-full transition-all text-gray-400 active:scale-90"><X size={28}/></button>
                 </div>
                 <div className="space-y-10">
                     {isGeneratingScreenshot ? (
@@ -414,7 +552,7 @@ const App: React.FC = () => {
                                 <img src={screenshotUrl!} className="w-full h-auto" alt="Final Design" />
                             </div>
                             <div className="flex justify-center">
-                                <a href={screenshotUrl!} download="paiho-u-render.png" className="flex items-center gap-4 bg-transparent text-black border border-black px-12 py-6 rounded-full font-black text-xs uppercase tracking-[0.2em] transition-all hover:bg-black hover:text-white active:scale-95 shadow-xl">
+                                <a href={screenshotUrl!} download="design-render.png" className="flex items-center gap-4 bg-transparent text-black border border-black px-12 py-6 rounded-[30px] font-black text-xs uppercase tracking-[0.2em] transition-all hover:bg-black hover:text-white active:scale-95 shadow-xl">
                                     <Download size={20} /> Download UHD Image
                                 </a>
                             </div>

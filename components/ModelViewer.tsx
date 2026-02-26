@@ -1,12 +1,20 @@
-
 import React, { Component, useEffect, useState, Suspense, useRef, ErrorInfo, useMemo, ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Html, Loader, Environment, PerspectiveCamera, Center, ContactShadows } from '@react-three/drei';
+import { OrbitControls, useGLTF, Html, Loader, Environment, PerspectiveCamera, Center, ContactShadows, AdaptiveDpr, AdaptiveEvents } from '@react-three/drei';
 import * as THREE from 'three';
 import { SelectedPart, TextureConfig, TextureItem } from '../types';
 
-const DEFAULT_MODEL_URL = "https://huggingface.co/yayapewn/huggingface/resolve/main/lace-sneaker-9-part.glb";
-const INTERACTIVE_KEYWORDS = ['Shape027', 'Line040', 'Shape026'];
+// 標準化八大部位名稱
+const MAIN_PARTS = [
+  'VAMP', 'TONGUE', 'COLLAR', 'PULL_TAB', 
+  'HEEL_COUNTER', 'WELT', 'MIDSOLE', 'OUTSOLE'
+];
+
+// 包含模型原始 ID 的互動關鍵字
+const INTERACTIVE_KEYWORDS = [
+  ...MAIN_PARTS,
+  'Shape027_1', 'Shape027', 'Line040', 'Shape026'
+];
 
 const DEFAULT_VIEW = {
     pos: [0.85, 0, 0] as [number, number, number], 
@@ -20,13 +28,53 @@ const TRUSTED_DOMAINS = [
     'aistudiocdn.com'
 ];
 
+// R3F 內建元素宣告，避免 TypeScript 在某些環境下的編譯錯誤
 const Group = 'group' as any;
 const AmbientLight = 'ambientLight' as any;
 const DirectionalLight = 'directionalLight' as any;
 const Primitive = 'primitive' as any;
 
+/**
+ * 將模型網格名稱映射為標準化的部位名稱（依據 Traveler 運動鞋設計圖）
+ */
+const getNormalizedPartName = (meshName: string): string => {
+    const upperName = meshName.toUpperCase();
+    
+    // Traveler 專屬部位名稱對照
+    if (upperName.includes('TONGUE_PULL_TAB')) return 'Tongue Pull Tab';
+    if (upperName.includes('TONGUE_LABEL')) return 'Tongue Label';
+    if (upperName.includes('TONGUE_REINFORCEMENT')) return 'Tongue Reinforcement';
+    if (upperName.includes('TONGUE')) return 'Tongue';
+    
+    if (upperName.includes('HEEL_PULL_TAB')) return 'Heel Pull Tab';
+    if (upperName.includes('HEEL_COLLAR_REINFORCEMENT')) return 'Heel Collar Reinforcement';
+    if (upperName.includes('HEEL_COUNTER')) return 'Heel Counter';
+    if (upperName.includes('HEEL_STRAP')) return 'Heel Strap';
+    
+    if (upperName.includes('QUARTER_LABEL')) return 'Quarter Label';
+    if (upperName.includes('QUARTER_OVERLAY')) return 'Quarter Overlay';
+    
+    if (upperName.includes('VAMP') || upperName.includes('SHAPE027')) return 'Vamp';
+    if (upperName.includes('SHOELACE') || upperName.includes('SHAPE026')) return 'Shoelace';
+    if (upperName.includes('EYELET')) return 'Eyelet';
+    if (upperName.includes('OUTSOLE')) return 'Outsole';
+    if (upperName.includes('MIDSOLE')) return 'Midsole';
+    if (upperName.includes('WELT')) return 'Welt';
+    if (upperName.includes('COLLAR')) return 'Collar';
+    if (upperName.includes('PULL_TAB')) return 'Pull Tab';
+    
+    // 預設處理：移除底線與結尾數字，並轉為首字母大寫
+    return meshName
+        .replace(/_/g, ' ')
+        .replace(/\d+$/, '')
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+};
+
 const isInteractive = (name: string) => {
-    return INTERACTIVE_KEYWORDS.some(keyword => name && name.includes(keyword));
+    return INTERACTIVE_KEYWORDS.some(keyword => name && name.toUpperCase().includes(keyword.toUpperCase()));
 };
 
 const isUrlSafe = (url: string) => {
@@ -50,9 +98,12 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                 const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
                 const totalWidth = 2560;
                 const totalHeight = 1440;
-                const leftWidth = Math.floor(totalWidth * (2/3));
-                const rightWidth = totalWidth - leftWidth;
-                const rowHeight = totalHeight / 3;
+                const halfWidth = totalWidth / 2;
+                const halfHeight = totalHeight / 2;
+                const quarterWidth = halfWidth / 2;
+                
+                const gutter = 20; // 增加間距以提升視覺舒適度
+
                 const canvas = document.createElement('canvas');
                 canvas.width = totalWidth;
                 canvas.height = totalHeight;
@@ -60,10 +111,22 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                 if (!ctx) { resolve(''); return; }
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(0, 0, totalWidth, totalHeight);
-                const renderAndDraw = (x: number, y: number, w: number, h: number, camPos: THREE.Vector3, lookAt: THREE.Vector3) => {
+
+                const renderAndDraw = (x: number, y: number, w: number, h: number, camPos: THREE.Vector3, lookAt: THREE.Vector3, up?: THREE.Vector3, customFov?: number) => {
+                     const originalUp = camera.up.clone();
+                     const originalFov = (camera as THREE.PerspectiveCamera).fov;
+                     
+                     if (up) camera.up.copy(up);
+                     else camera.up.set(0, 1, 0);
+                     
                      camera.position.copy(camPos);
                      camera.lookAt(lookAt);
+                     
+                     // 根據視圖類型微調 FOV，確保模型大小與參考圖一致且不被裁切
+                     (camera as THREE.PerspectiveCamera).fov = customFov || 30;
+                     camera.updateProjectionMatrix();
                      camera.updateMatrixWorld();
+                     
                      gl.render(scene, camera);
                      const tempCanvas = document.createElement('canvas');
                      tempCanvas.width = gl.domElement.width;
@@ -73,20 +136,49 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                          tempCtx.drawImage(gl.domElement, 0, 0);
                          const srcAspect = tempCanvas.width / tempCanvas.height;
                          const destAspect = w / h;
+                         
+                         // 使用 92% 的佔比，預留安全空間確保陰影不被裁切
+                         const scaleFactor = 0.92;
+                         const targetW = w * scaleFactor;
+                         const targetH = h * scaleFactor;
+                         
                          let drawW, drawH, drawX, drawY;
+                         
                          if (srcAspect > destAspect) {
-                             drawW = w; drawH = w / srcAspect; drawX = x; drawY = y + (h - drawH) / 2;
+                             drawW = targetW; 
+                             drawH = targetW / srcAspect; 
+                             drawX = x + (w - drawW) / 2; 
+                             drawY = y + (h - drawH) / 2;
                          } else {
-                             drawH = h; drawW = h * srcAspect; drawY = y; drawX = x + (w - drawW) / 2;
+                             drawH = targetH; 
+                             drawW = targetH * srcAspect; 
+                             drawY = y + (h - drawH) / 2; 
+                             drawX = x + (w - drawW) / 2;
                          }
                          ctx.drawImage(tempCanvas, drawX, drawY, drawW, drawH);
                      }
+                     
+                     camera.up.copy(originalUp);
+                     (camera as THREE.PerspectiveCamera).fov = originalFov;
+                     camera.updateProjectionMatrix();
                 };
+
                 const lookAtCenter = new THREE.Vector3(0, 0, 0);
-                renderAndDraw(0, 0, leftWidth, totalHeight, originalPosition, lookAtCenter);
-                renderAndDraw(leftWidth, 0, rightWidth, rowHeight, new THREE.Vector3(0, 0.5, 0), lookAtCenter);
-                renderAndDraw(leftWidth, rowHeight, rightWidth, rowHeight, new THREE.Vector3(0.5, 0, 0), lookAtCenter);
-                renderAndDraw(leftWidth, rowHeight * 2, rightWidth, rowHeight, new THREE.Vector3(0, 0, -0.5), lookAtCenter);
+                
+                // 1. 左上：正側視圖 (Side View)
+                renderAndDraw(0, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.75, 0, 0), lookAtCenter);
+                
+                // 2. 左下：上視圖 (Top View)
+                renderAndDraw(0, halfHeight + gutter, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0.75, 0), lookAtCenter, new THREE.Vector3(-1, 0, 0));
+                
+                // 3. 右上：45度角視圖 (Perspective View)
+                renderAndDraw(halfWidth + gutter, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.55, 0.4, 0.55), lookAtCenter);
+                
+                // 4. 右下左：鞋頭視角 (Toe View)
+                renderAndDraw(halfWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, 0.8), lookAtCenter, undefined, 28);
+                
+                // 5. 右下右：鞋跟視角 (Heel View)
+                renderAndDraw(halfWidth + quarterWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, -0.8), lookAtCenter, undefined, 28);
                 camera.position.copy(originalPosition);
                 camera.rotation.copy(originalRotation);
                 (camera as THREE.PerspectiveCamera).aspect = originalAspect;
@@ -100,7 +192,6 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
 
 interface ErrorBoundaryProps { 
     children?: ReactNode;
-    key?: string | number;
 }
 
 interface ErrorBoundaryState { 
@@ -108,8 +199,8 @@ interface ErrorBoundaryState {
     error: any; 
 }
 
-// Fix: Explicitly extend Component from 'react' to resolve property access errors in TypeScript
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fixed ErrorBoundary by extending React.Component directly to ensure state, props, and setState are correctly recognized as inherited members.
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -124,7 +215,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
-    // Fix: Correctly access this.state and this.props within the class component
     const { hasError } = this.state;
     const { children } = this.props;
 
@@ -134,7 +224,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
           <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 text-center w-80">
             <div className="text-red-500 font-bold mb-2 text-lg">Loading Failed</div>
             <p className="text-sm text-gray-500 mb-4">Unable to load the 3D model. Please check the URL or your connection.</p>
-            {/* Fix: Using this.setState within class component context */}
             <button 
                 onClick={() => this.setState({ hasError: false, error: null })} 
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm hover:bg-indigo-700 transition"
@@ -151,15 +240,22 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 interface ModelProps {
   url: string;
+  modelId?: string;
+  modelScale: number;
+  modelRotation: [number, number, number];
+  modelPosition: [number, number, number];
   selectedPart: SelectedPart | null;
   onPartSelect: (part: SelectedPart | null) => void;
   textureMap: Record<string, TextureConfig | null>;
   controls: any;
 }
 
-const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureMap, controls }) => {
+const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls }) => {
   const { scene } = useGLTF(url);
   const textureLoader = useRef(new THREE.TextureLoader());
+  
+  // 用於判斷是拖曳旋轉還是點擊部位
+  const pointerDownPos = useRef({ x: 0, y: 0 });
 
   const cachedMeshes = useMemo(() => {
     const interactive: THREE.Mesh[] = [];
@@ -171,7 +267,11 @@ const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureM
         if (!mesh.userData.originalMaterial) {
             mesh.userData.originalMaterial = mesh.material;
         }
-        if (isInteractive(mesh.name)) {
+        
+        // 如果是 traveler 模型，則所有網格都視為可互動
+        const interactiveFlag = modelId === 'traveler' ? true : isInteractive(mesh.name);
+
+        if (interactiveFlag) {
             interactive.push(mesh);
             if (!mesh.userData.isCustomMaterial) {
                 const originalMat = Array.isArray(mesh.userData.originalMaterial) 
@@ -192,7 +292,7 @@ const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureM
       }
     });
     return interactive;
-  }, [scene]);
+  }, [scene, modelId]);
 
   useEffect(() => {
     cachedMeshes.forEach(mesh => {
@@ -250,41 +350,69 @@ const Model: React.FC<ModelProps> = ({ url, selectedPart, onPartSelect, textureM
 
   return <Primitive 
             object={scene} 
-            scale={[2, 2, 2]} 
-            rotation={[0, Math.PI, 0]} 
-            onPointerOver={(e: any) => { e.stopPropagation(); if(isInteractive(e.object.name)) document.body.style.cursor = 'pointer'; }}
+            scale={[modelScale, modelScale, modelScale]} 
+            rotation={modelRotation} 
+            onPointerDown={(e: any) => {
+                pointerDownPos.current = { x: e.clientX, y: e.clientY };
+            }}
+            onPointerOver={(e: any) => { 
+                e.stopPropagation(); 
+                const interactiveFlag = modelId === 'traveler' ? true : isInteractive(e.object.name);
+                if(interactiveFlag) document.body.style.cursor = 'pointer'; 
+            }}
             onPointerOut={() => { document.body.style.cursor = 'auto'; }}
             onClick={(e: any) => {
                 e.stopPropagation();
+                
+                // 計算滑鼠按下與放開的距離，如果大於 5 像素則視為拖曳旋轉
+                const dist = Math.sqrt(
+                    Math.pow(e.clientX - pointerDownPos.current.x, 2) +
+                    Math.pow(e.clientY - pointerDownPos.current.y, 2)
+                );
+                if (dist > 5) return;
+
                 const mesh = e.object as THREE.Mesh;
-                if (!isInteractive(mesh.name)) { onPartSelect(null); return; }
+                const interactiveFlag = modelId === 'traveler' ? true : isInteractive(mesh.name);
+                
+                if (!interactiveFlag) { onPartSelect(null); return; }
                 mesh.userData.glowEnergy = 1.0;
                 const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-                onPartSelect({ name: mesh.name, materialName: mat.name, id: mesh.uuid });
+                
+                // 使用標準化的部位名稱以更新 UI
+                const normalizedPartName = getNormalizedPartName(mesh.name);
+                onPartSelect({ name: normalizedPartName, materialName: mat.name, id: mesh.uuid });
             }}
           />;
 };
 
-const InnerScene = React.memo(({ url, selectedPart, onPartSelect, textureMap, controls }: ModelProps) => {
+const InnerScene = React.memo(({ url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, controls }: ModelProps) => {
     const [modelBottom, setModelBottom] = useState(-0.1);
     return (
-        <Group>
+        <Group position={modelPosition}>
             <Center onCentered={({ height }) => setModelBottom(-height / 2)}>
                 <Model 
                     url={url} 
+                    modelId={modelId}
+                    modelScale={modelScale}
+                    modelRotation={modelRotation}
+                    modelPosition={modelPosition}
                     selectedPart={selectedPart} 
                     onPartSelect={onPartSelect}
                     textureMap={textureMap}
                     controls={controls}
                 />
             </Center>
-            <ContactShadows position={[0, modelBottom - 0.001, 0]} opacity={0.7} scale={1.5} blur={0.6} far={1.0} resolution={512} color="#000000" />
+            <ContactShadows position={[0, modelBottom - 0.001, 0]} opacity={0.6} scale={1.5} blur={0.8} far={1.0} resolution={256} color="#000000" />
         </Group>
     );
 });
 
 interface ModelViewerProps {
-  modelFile: File | null;
+  url: string;
+  modelId?: string;
+  modelScale: number;
+  modelRotation: [number, number, number];
+  modelPosition: [number, number, number];
   selectedPart: SelectedPart | null;
   onPartSelect: (part: SelectedPart | null) => void;
   textureMap: Record<string, TextureConfig | null>;
@@ -299,9 +427,8 @@ interface ModelViewerProps {
 }
 
 const ModelViewer = React.forwardRef<any, ModelViewerProps>(({ 
-    modelFile, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate
+    url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate
 }, ref) => {
-  const [modelUrl, setModelUrl] = useState<string>(DEFAULT_MODEL_URL);
   const controlsRef = useRef<any>(null);
   const screenshotHandlerRef = useRef<any>(null);
 
@@ -309,29 +436,24 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
       captureComposition: () => screenshotHandlerRef.current?.captureComposition() || Promise.resolve('')
   }));
 
-  useEffect(() => {
-    if (modelFile) {
-      const url = URL.createObjectURL(modelFile);
-      setModelUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setModelUrl(DEFAULT_MODEL_URL);
-    }
-  }, [modelFile]);
-
   const rad = (dirLightRotation * Math.PI) / 180;
   const dirLightX = Math.cos(rad) * 6;
   const dirLightZ = Math.sin(rad) * 6;
 
   return (
     <div className="w-full h-full bg-[#f8f9fa] relative">
-      <Canvas shadows dpr={[1, 1.5]}
+      <Canvas shadows dpr={[1, 2]}
           gl={{ 
-            preserveDrawingBuffer: true, antialias: true, powerPreference: 'high-performance',
-            toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2, shadowMapType: THREE.PCFShadowMap
+            preserveDrawingBuffer: true, 
+            antialias: false,
+            powerPreference: 'high-performance',
+            toneMapping: THREE.ACESFilmicToneMapping, 
+            toneMappingExposure: 1.2
           }}
           onPointerMissed={(e) => { if (e.type === 'click') onPartSelect(null); }}
       >
+        <AdaptiveDpr pixelated />
+        <AdaptiveEvents />
         <PerspectiveCamera makeDefault position={DEFAULT_VIEW.pos} fov={DEFAULT_VIEW.fov} near={0.01} />
         <OrbitControls 
             ref={controlsRef}
@@ -345,9 +467,14 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         />
         <ScreenshotHandler ref={screenshotHandlerRef} />
         <Suspense fallback={<Html center><div className="flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Initializing Scene...</p></div></Html>}>
-            <ErrorBoundary key={modelUrl}>
+            {/* Fixed key error by ensuring ErrorBoundary is recognized as a standard React component */}
+            <ErrorBoundary key={url}>
                 <InnerScene 
-                    url={modelUrl}
+                    url={url}
+                    modelId={modelId}
+                    modelScale={modelScale}
+                    modelRotation={modelRotation}
+                    modelPosition={modelPosition}
                     selectedPart={selectedPart}
                     onPartSelect={onPartSelect}
                     textureMap={textureMap}
@@ -356,8 +483,15 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
                 <Suspense fallback={null}>
                   <Environment preset={envPreset as any} environmentIntensity={envIntensity} environmentRotation={[0, (envRotation * Math.PI) / 180, 0]} />
                 </Suspense>
-                <AmbientLight intensity={0.4} />
-                <DirectionalLight position={[dirLightX, 8, dirLightZ]} intensity={1.0} castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0005} shadow-normalBias={shadowNormalBias} />
+                <AmbientLight intensity={0.5} />
+                <DirectionalLight 
+                    position={[dirLightX, 8, dirLightZ]} 
+                    intensity={0.8} 
+                    castShadow 
+                    shadow-mapSize={[512, 512]} 
+                    shadow-bias={-0.001} 
+                    shadow-normalBias={shadowNormalBias} 
+                />
             </ErrorBoundary>
         </Suspense>
       </Canvas>
@@ -367,10 +501,8 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             absolute left-1/2 -translate-x-1/2 z-10 
             transition-all duration-500 ease-out animate-in fade-in slide-in-from-top-4
             flex flex-col items-center gap-4 w-full px-8 max-w-xl text-center
-            top-[max(86px,10dvh)]
-            lg:top-32
+            top-[calc(18dvh-5px)] lg:top-32
         `}>
-          {/* Part Label - Identifies what is being edited */}
           <div className="flex items-center gap-3 px-6 py-2.5 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_rgba(0,0,0,0.05)] whitespace-nowrap">
             <span className="w-2.5 h-2.5 shrink-0 rounded-full bg-indigo-500 animate-pulse"></span>
             <span className="text-[10px] lg:text-[11px] font-black tracking-[0.2em] uppercase text-gray-900 leading-none">
@@ -378,7 +510,6 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             </span>
           </div>
 
-          {/* Material Detailed Information - Box-less typography focused design */}
           {activeTexture && (
             <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-700 delay-150">
                 <h2 className="text-[18px] lg:text-[24px] font-black tracking-tighter text-gray-900 uppercase">
@@ -387,7 +518,6 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
                 <p className="text-[11px] lg:text-[13px] text-gray-500 font-medium leading-relaxed max-w-sm">
                     {activeTexture.description}
                 </p>
-                {/* Unified Link style for all materials */}
                 <a 
                   href={activeTexture.link || "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786"} 
                   target="_blank" 
