@@ -96,10 +96,13 @@ const rgbToHsv = (r: number, g: number, b: number) => {
 const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void }> = ({ color, onChange }) => {
   const rgb = useMemo(() => hexToRgb(color), [color]);
   const [hsv, setHsv] = useState(() => rgbToHsv(rgb.r, rgb.g, rgb.b));
+  
+  // 使用 ref 追蹤最新的 color，避免在 useEffect 中觸發不必要的更新
+  const colorRef = useRef(color);
 
   useEffect(() => {
-    const currentHex = rgbToHex(rgb.r, rgb.g, rgb.b);
-    if (currentHex !== color) {
+    if (colorRef.current !== color) {
+       colorRef.current = color;
        setHsv(rgbToHsv(rgb.r, rgb.g, rgb.b));
     }
   }, [color, rgb]);
@@ -109,7 +112,12 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void 
         const next = { ...prev, ...updates };
         const newRgb = hsvToRgb(next.h, next.s, next.v);
         const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-        if (newHex !== color) onChange(newHex);
+        
+        // 確保只在顏色真正改變時才呼叫 onChange，且使用 setTimeout 避免在渲染週期內更新父元件
+        if (newHex !== colorRef.current) {
+            colorRef.current = newHex;
+            setTimeout(() => onChange(newHex), 0);
+        }
         return next;
     });
   };
