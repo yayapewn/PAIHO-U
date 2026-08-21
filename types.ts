@@ -3,6 +3,7 @@ export interface TextureItem {
   id: string;
   name: string;
   url: string; // Blob URL or Data URL
+  normalUrl?: string;
   title?: string;
   description?: string;
   link?: string;
@@ -10,6 +11,7 @@ export interface TextureItem {
 
 export interface TextureConfig {
   url: string;
+  normalUrl?: string;
   scale: number;
   offsetX: number;
   offsetY: number;

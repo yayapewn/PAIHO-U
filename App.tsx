@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { X, RotateCw, Share2, Download, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor } from 'lucide-react';
+import { X, RotateCw, Share2, Download, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor, Pipette } from 'lucide-react';
 import ModelViewer from './components/ModelViewer';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
 
@@ -36,12 +36,12 @@ const MODELS = [
 ];
 
 const GENERAL_TEXTURES: TextureItem[] = [
-  { id: 'v1', name: 'Fine Fabric 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg', title: '4-WAY STRETCH FABRIC', description: 'A dynamic stretchable fabric providing high flexibility and comfort for peak performance.', link: UNIFORM_LINK },
-  { id: 'v2', name: 'Woven Fabric 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg', title: 'ENGINEERED JACQUARD', description: 'Intricately woven patterns designed for strategic support and maximum breathability.', link: UNIFORM_LINK },
-  { id: 'v3', name: 'Tech Mesh 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg', title: 'AERO-VENT MESH', description: 'Lightweight mesh engineered with open structures to ensure optimal cooling during activity.', link: UNIFORM_LINK },
-  { id: 'v4', name: 'Durable 04', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg', title: 'HEAVY DUTY NYLON', description: 'Abrasion-resistant nylon blend crafted for rugged environments and longevity.', link: UNIFORM_LINK },
-  { id: 'v5', name: 'Breathable 05', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', title: 'ECO-KNIT MATERIAL', description: 'Sustainable yarn choice offering a soft touch and reduced environmental impact.', link: UNIFORM_LINK },
-  { id: 'v6', name: 'Digital 06', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01436-01A-000A_BASE.jpg', title: 'DIGITAL PRINT 3D', description: 'Vibrant 3D printed texture for a futuristic and personalized aesthetic.', link: UNIFORM_LINK },
+  { id: 'v1', name: 'Fine Fabric 01', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_BASE.jpg', normalUrl: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000601%20A%20WP_NRM.jpg', title: '4-WAY STRETCH FABRIC', description: 'A dynamic stretchable fabric providing high flexibility and comfort for peak performance.', link: UNIFORM_LINK },
+  { id: 'v2', name: 'Woven Fabric 02', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_BASE.jpg', normalUrl: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000716%20A%20WP_NRM.jpg', title: 'ENGINEERED JACQUARD', description: 'Intricately woven patterns designed for strategic support and maximum breathability.', link: UNIFORM_LINK },
+  { id: 'v3', name: 'Tech Mesh 03', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_BASE.jpg', normalUrl: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT%2000820%20J%20WP_NRM.jpg', title: 'AERO-VENT MESH', description: 'Lightweight mesh engineered with open structures to ensure optimal cooling during activity.', link: UNIFORM_LINK },
+  { id: 'v4', name: 'Durable 04', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_BASE.jpg', normalUrl: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01305-01A-000A_NRM.jpg', title: 'HEAVY DUTY NYLON', description: 'Abrasion-resistant nylon blend crafted for rugged environments and longevity.', link: UNIFORM_LINK },
+  { id: 'v5', name: 'Breathable 05', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_BASE.jpg', normalUrl: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01317-01A-000A_NRM.jpg', title: 'ECO-KNIT MATERIAL', description: 'Sustainable yarn choice offering a soft touch and reduced environmental impact.', link: UNIFORM_LINK },
+  { id: 'v6', name: 'Digital 06', url: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01436-01A-000A_BASE.jpg', normalUrl: 'https://raw.githubusercontent.com/yayapewn/shoe-textures/main/EGT01436-01A-000A_NRM.jpg', title: 'DIGITAL PRINT 3D', description: 'Vibrant 3D printed texture for a futuristic and personalized aesthetic.', link: UNIFORM_LINK },
 ];
 
 // --- Color Conversion Helpers ---
@@ -93,33 +93,49 @@ const rgbToHsv = (r: number, g: number, b: number) => {
 /**
  * 專業級直覺檢色器
  */
-const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void }> = ({ color, onChange }) => {
-  const rgb = useMemo(() => hexToRgb(color), [color]);
-  const [hsv, setHsv] = useState(() => rgbToHsv(rgb.r, rgb.g, rgb.b));
+const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void, onLiveChange?: (hex: string) => void, isPickingColor: boolean, onTogglePick: () => void }> = ({ color, onChange, onLiveChange, isPickingColor, onTogglePick }) => {
+  const [hsv, setHsv] = useState(() => rgbToHsv(hexToRgb(color).r, hexToRgb(color).g, hexToRgb(color).b));
+  const [inputText, setInputText] = useState(color);
   
-  // 使用 ref 追蹤最新的 color，避免在 useEffect 中觸發不必要的更新
   const colorRef = useRef(color);
+  const hsvRef = useRef(hsv);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (colorRef.current !== color) {
        colorRef.current = color;
-       setHsv(rgbToHsv(rgb.r, rgb.g, rgb.b));
+       setInputText(color);
+       const newRgb = hexToRgb(color);
+       const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
+       setHsv(newHsv);
+       hsvRef.current = newHsv;
     }
-  }, [color, rgb]);
+  }, [color]);
 
-  const updateHsv = (updates: Partial<{h:number, s:number, v:number}>) => {
-    setHsv(prev => {
-        const next = { ...prev, ...updates };
-        const newRgb = hsvToRgb(next.h, next.s, next.v);
-        const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+  const updateHsv = (updates: Partial<{h:number, s:number, v:number}>, isCommit = false) => {
+    const nextHsv = { ...hsvRef.current, ...updates };
+    setHsv(nextHsv);
+    hsvRef.current = nextHsv;
+    
+    const newRgb = hsvToRgb(nextHsv.h, nextHsv.s, nextHsv.v);
+    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+    
+    setInputText(newHex);
+    
+    if (newHex !== colorRef.current) {
+        colorRef.current = newHex;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
         
-        // 確保只在顏色真正改變時才呼叫 onChange，且使用 setTimeout 避免在渲染週期內更新父元件
-        if (newHex !== colorRef.current) {
-            colorRef.current = newHex;
-            setTimeout(() => onChange(newHex), 0);
+        if (isCommit) {
+            onChange(newHex);
+        } else if (onLiveChange) {
+            rafRef.current = requestAnimationFrame(() => {
+                onLiveChange(newHex);
+            });
         }
-        return next;
-    });
+    } else if (isCommit) {
+        onChange(newHex);
+    }
   };
 
   const hsRef = useRef<HTMLDivElement>(null);
@@ -128,14 +144,18 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void 
   const handlePointerDownHS = (e: React.PointerEvent) => {
     if (!hsRef.current) return;
     const rect = hsRef.current.getBoundingClientRect();
-    const update = (clientX: number, clientY: number) => {
+    const update = (clientX: number, clientY: number, isCommit = false) => {
       const h = Math.max(0, Math.min(360, ((clientX - rect.left) / rect.width) * 360));
       const s = Math.max(0, Math.min(100, (1 - (clientY - rect.top) / rect.height) * 100));
-      updateHsv({ h, s });
+      updateHsv({ h, s }, isCommit);
     };
     update(e.clientX, e.clientY);
     const onMove = (m: PointerEvent) => update(m.clientX, m.clientY);
-    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    const onUp = (m: PointerEvent) => { 
+        update(m.clientX, m.clientY, true);
+        window.removeEventListener('pointermove', onMove); 
+        window.removeEventListener('pointerup', onUp); 
+    };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   };
@@ -143,13 +163,17 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void 
   const handlePointerDownV = (e: React.PointerEvent) => {
     if (!vRef.current) return;
     const rect = vRef.current.getBoundingClientRect();
-    const update = (clientY: number) => {
+    const update = (clientY: number, isCommit = false) => {
       const v = Math.max(0, Math.min(100, (1 - (clientY - rect.top) / rect.height) * 100));
-      updateHsv({ v });
+      updateHsv({ v }, isCommit);
     };
     update(e.clientY);
     const onMove = (m: PointerEvent) => update(m.clientY);
-    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    const onUp = (m: PointerEvent) => { 
+        update(m.clientY, true);
+        window.removeEventListener('pointermove', onMove); 
+        window.removeEventListener('pointerup', onUp); 
+    };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   };
@@ -190,25 +214,33 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void 
         </div>
       </div>
 
-      <div className="grid grid-cols-[1fr_0.8fr] gap-4">
+      <div className="grid grid-cols-[1fr_auto_0.8fr] gap-3 items-end">
           <div className="space-y-1.5">
               <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block ml-1">HEX CODE</span>
               <div className="bg-gray-50 rounded-xl px-4 py-3 border border-transparent focus-within:border-indigo-100 transition-all flex items-center h-[52px]">
                   <input 
                     type="text" 
-                    defaultValue={color} 
-                    key={color}
+                    value={inputText}
                     onChange={(e) => {
-                        let val = e.target.value.trim().toUpperCase();
-                        if (/^#[0-9A-F]{6}$/i.test(val)) onChange(val);
+                        const val = e.target.value.toUpperCase();
+                        setInputText(val);
+                        if (/^#[0-9A-F]{6}$/i.test(val)) {
+                            if (onLiveChange) onLiveChange(val);
+                            onChange(val);
+                        }
                     }}
                     className="bg-transparent border-none outline-none w-full text-[13px] font-black uppercase tracking-tight text-gray-700" 
                   />
               </div>
           </div>
-          <div className="flex items-end">
-              <div className="w-full h-[52px] bg-gray-50 rounded-xl overflow-hidden shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]" style={{ backgroundColor: color }}></div>
-          </div>
+          <button 
+            onClick={onTogglePick}
+            className={`h-[52px] w-[52px] flex items-center justify-center rounded-xl transition-colors border ${isPickingColor ? 'bg-indigo-100 text-indigo-600 border-indigo-200 shadow-sm' : 'bg-gray-50 text-gray-400 hover:text-indigo-500 hover:bg-gray-200/50 border-transparent'}`}
+            title="Pick color from 3D model"
+          >
+            <Pipette size={20} />
+          </button>
+          <div className="w-full h-[52px] bg-gray-50 rounded-xl overflow-hidden shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] border border-gray-100" style={{ backgroundColor: color }}></div>
       </div>
     </div>
   );
@@ -222,6 +254,7 @@ const App: React.FC = () => {
   const [envIntensity, setEnvIntensity] = useState<number>(1.5); 
   const [envRotation, setEnvRotation] = useState<number>(MODELS[0].initialEnvRotation); 
   const [autoRotate, setAutoRotate] = useState<boolean>(false);
+  const [isPickingColor, setIsPickingColor] = useState<boolean>(false);
   const [partTextures, setPartTextures] = useState<Record<string, TextureConfig | null>>({});
 
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -279,8 +312,8 @@ const App: React.FC = () => {
     setActiveTexture(texture);
     setPartTextures(prev => {
       const existing = prev[selectedPart.id];
-      if (existing) return { ...prev, [selectedPart.id]: { ...existing, url: texture.url } };
-      return { ...prev, [selectedPart.id]: { url: texture.url, scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 } };
+      if (existing) return { ...prev, [selectedPart.id]: { ...existing, url: texture.url, normalUrl: texture.normalUrl, color: '#ffffff' } };
+      return { ...prev, [selectedPart.id]: { url: texture.url, normalUrl: texture.normalUrl, scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1, color: '#ffffff' } };
     });
   };
 
@@ -290,7 +323,7 @@ const App: React.FC = () => {
     setPartTextures(prev => {
       const config = prev[selectedPart.id];
       if (!config) return prev;
-      return { ...prev, [selectedPart.id]: { ...config, url: '' } };
+      return { ...prev, [selectedPart.id]: { ...config, url: '', normalUrl: '' } };
     });
   };
 
@@ -303,10 +336,17 @@ const App: React.FC = () => {
     });
   };
 
+  const handleColorPicked = (hex: string) => {
+    if (selectedPart) {
+      updateTextureConfig('color', hex);
+      setIsPickingColor(false);
+    }
+  };
+
   const updateTextureConfig = (key: keyof TextureConfig, value: any) => {
       if (!selectedPart) return;
       setPartTextures(prev => {
-          const config = prev[selectedPart.id] || { url: '', scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 };
+          const config = prev[selectedPart.id] || { url: '', normalUrl: '', scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 };
           return { ...prev, [selectedPart.id]: { ...config, [key]: value } };
       });
   };
@@ -424,6 +464,8 @@ const App: React.FC = () => {
              shadowBlur={0.25}
              shadowNormalBias={0.4}
              autoRotate={autoRotate}
+             isPickingColor={isPickingColor}
+             onColorPicked={handleColorPicked}
            />
 
            {(!selectedPart) && (
@@ -498,7 +540,17 @@ const App: React.FC = () => {
                                     </button>
                                 </div>
                                 <div className="px-1">
-                                    <ProColorPicker color={currentColorHex} onChange={(hex) => updateTextureConfig('color', hex)} />
+                                    <ProColorPicker 
+                                      color={currentColorHex} 
+                                      onChange={(hex) => updateTextureConfig('color', hex)}
+                                      onLiveChange={(hex) => {
+                                          window.dispatchEvent(new CustomEvent('preview-part-color', { 
+                                              detail: { partId: selectedPart.id, color: hex } 
+                                          }));
+                                      }}
+                                      isPickingColor={isPickingColor}
+                                      onTogglePick={() => setIsPickingColor(!isPickingColor)}
+                                    />
                                 </div>
                             </section>
 

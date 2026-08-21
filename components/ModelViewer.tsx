@@ -248,11 +248,17 @@ interface ModelProps {
   onPartSelect: (part: SelectedPart | null) => void;
   textureMap: Record<string, TextureConfig | null>;
   controls: any;
+  isPickingColor?: boolean;
+  onColorPicked?: (hex: string) => void;
 }
 
-const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls }) => {
+const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked }) => {
   const { scene } = useGLTF(url);
-  const textureLoader = useRef(new THREE.TextureLoader());
+  // 使用獨立的 LoadingManager，避免觸發全域的 Suspense Loader（防止閃黑畫面）
+  const textureLoader = useMemo(() => {
+      const manager = new THREE.LoadingManager();
+      return new THREE.TextureLoader(manager);
+  }, []);
   
   // 用於判斷是拖曳旋轉還是點擊部位
   const pointerDownPos = useRef({ x: 0, y: 0 });
@@ -284,6 +290,9 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
                     newMat.emissive.setHex(0xffffff);
                     newMat.emissiveIntensity = 0;
                 }
+
+
+
                 mesh.material = newMat;
                 mesh.userData.isCustomMaterial = true;
                 mesh.userData.glowEnergy = 0;
@@ -293,6 +302,32 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
     });
     return interactive;
   }, [scene, modelId]);
+
+  useEffect(() => {
+    const handlePreviewColor = (e: any) => {
+      const { partId, color } = e.detail;
+      const mesh = cachedMeshes.find(m => m.uuid === partId);
+      if (mesh) {
+        const material = mesh.material as THREE.MeshStandardMaterial;
+        if (material && material.color) {
+            material.color.set(color);
+            
+            const upperName = getNormalizedPartName(mesh.name).toUpperCase();
+            if (['TONGUE', 'MIDSOLE', 'OUTSOLE'].includes(upperName)) {
+                let changed = false;
+                if (material.map !== null) { material.map = null; changed = true; }
+                if (material.aoMap !== null) { material.aoMap = null; changed = true; }
+                if (material.lightMap !== null) { material.lightMap = null; changed = true; }
+                if (material.emissiveMap !== null) { material.emissiveMap = null; changed = true; }
+                if (material.vertexColors) { material.vertexColors = false; changed = true; }
+                if (changed) material.needsUpdate = true;
+            }
+        }
+      }
+    };
+    window.addEventListener('preview-part-color', handlePreviewColor);
+    return () => window.removeEventListener('preview-part-color', handlePreviewColor);
+  }, [cachedMeshes]);
 
   useEffect(() => {
     cachedMeshes.forEach(mesh => {
@@ -306,9 +341,18 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
         material.opacity = config.opacity;
         material.alphaTest = 0.05;
 
+        const origMat = Array.isArray(mesh.userData.originalMaterial) ? mesh.userData.originalMaterial[0] : mesh.userData.originalMaterial;
+
         if (config.url && isUrlSafe(config.url)) {
             if (mesh.userData.currentTextureUrl !== config.url) {
-                textureLoader.current.load(config.url, (texture) => {
+                mesh.userData.currentTextureUrl = config.url; // 立即更新 URL，防止重複觸發載入
+                textureLoader.load(config.url, (texture) => {
+                    // 確保載入完成時，使用者沒有切換到其他貼圖
+                    if (mesh.userData.currentTextureUrl !== config.url) {
+                        texture.dispose();
+                        return;
+                    }
+                    
                     texture.flipY = false;
                     texture.colorSpace = THREE.SRGBColorSpace;
                     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
@@ -316,18 +360,86 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
                     texture.offset.set(config.offsetX, config.offsetY);
                     texture.rotation = (config.rotation * Math.PI) / 180;
                     texture.center.set(0.5, 0.5);
+                    
+                    if (material.map && material.map !== origMat.map) {
+                        material.map.dispose();
+                    }
                     material.map = texture;
                     material.needsUpdate = true;
-                    mesh.userData.currentTextureUrl = config.url;
-                }, undefined, (err) => console.error("Texture failed:", config.url, err));
-            } else if (material.map) {
+                }, undefined, (err) => {
+                    console.error("Texture failed:", config.url, err);
+                    if (mesh.userData.currentTextureUrl === config.url) {
+                        mesh.userData.currentTextureUrl = null;
+                    }
+                });
+            } else if (material.map && material.map !== origMat.map) {
                 material.map.repeat.set(config.scale, config.scale);
                 material.map.rotation = (config.rotation * Math.PI) / 180;
                 material.map.offset.set(config.offsetX, config.offsetY);
             }
         } else {
-            material.map = null;
-            mesh.userData.currentTextureUrl = null;
+            const upperName = getNormalizedPartName(mesh.name).toUpperCase();
+            const isCategoryB = ['TONGUE', 'MIDSOLE', 'OUTSOLE'].includes(upperName);
+            if (isCategoryB) {
+                let changed = false;
+                if (material.map !== null) { material.map = null; changed = true; }
+                if (material.aoMap !== null) { material.aoMap = null; changed = true; }
+                if (material.lightMap !== null) { material.lightMap = null; changed = true; }
+                if (material.emissiveMap !== null) { material.emissiveMap = null; changed = true; }
+                if (material.vertexColors) { material.vertexColors = false; changed = true; }
+                if (changed) {
+                    mesh.userData.currentTextureUrl = null;
+                    material.needsUpdate = true;
+                }
+            } else {
+                if (material.map !== origMat.map) {
+                    if (material.map && material.map !== origMat.map) material.map.dispose();
+                    material.map = origMat.map;
+                    mesh.userData.currentTextureUrl = null;
+                    material.needsUpdate = true;
+                }
+            }
+        }
+
+        if (config.normalUrl && isUrlSafe(config.normalUrl)) {
+            if (mesh.userData.currentNormalUrl !== config.normalUrl) {
+                mesh.userData.currentNormalUrl = config.normalUrl; // 立即更新 URL
+                textureLoader.load(config.normalUrl, (normalTexture) => {
+                    // 確保載入完成時，使用者沒有切換到其他貼圖
+                    if (mesh.userData.currentNormalUrl !== config.normalUrl) {
+                        normalTexture.dispose();
+                        return;
+                    }
+                    normalTexture.flipY = false;
+                    normalTexture.wrapS = normalTexture.wrapT = THREE.RepeatWrapping;
+                    normalTexture.repeat.set(config.scale, config.scale);
+                    normalTexture.offset.set(config.offsetX, config.offsetY);
+                    normalTexture.rotation = (config.rotation * Math.PI) / 180;
+                    normalTexture.center.set(0.5, 0.5);
+                    
+                    if (material.normalMap && material.normalMap !== origMat.normalMap) {
+                        material.normalMap.dispose();
+                    }
+                    material.normalMap = normalTexture;
+                    material.needsUpdate = true;
+                }, undefined, (err) => {
+                    console.error("Normal map failed:", config.normalUrl, err);
+                    if (mesh.userData.currentNormalUrl === config.normalUrl) {
+                        mesh.userData.currentNormalUrl = null;
+                    }
+                });
+            } else if (material.normalMap && material.normalMap !== origMat.normalMap) {
+                material.normalMap.repeat.set(config.scale, config.scale);
+                material.normalMap.rotation = (config.rotation * Math.PI) / 180;
+                material.normalMap.offset.set(config.offsetX, config.offsetY);
+            }
+        } else {
+            if (material.normalMap !== origMat.normalMap) {
+                if (material.normalMap) material.normalMap.dispose();
+                material.normalMap = origMat.normalMap;
+                mesh.userData.currentNormalUrl = null;
+                material.needsUpdate = true;
+            }
         }
       }
     });
@@ -357,6 +469,10 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
             }}
             onPointerOver={(e: any) => { 
                 e.stopPropagation(); 
+                if (isPickingColor) {
+                    document.body.style.cursor = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g stroke='rgba(255,255,255,0.8)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><path d='m2 22 1-1h3l9-9'/><path d='M3 21v-3l9-9'/><path d='m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z'/></g><g stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polygon points='3,21 3,18 12,9 15,12 6,21' fill='white'/><path d='m2 22 1-1' stroke-width='2'/><path d='m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z' fill='black'/></g></svg>") 0 24, crosshair`;
+                    return;
+                }
                 const interactiveFlag = modelId === 'traveler' ? true : isInteractive(e.object.name);
                 if(interactiveFlag) document.body.style.cursor = 'pointer'; 
             }}
@@ -364,19 +480,77 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
             onClick={(e: any) => {
                 e.stopPropagation();
                 
-                // 計算滑鼠按下與放開的距離，如果大於 5 像素則視為拖曳旋轉
+                // 計算滑鼠按下與放開的距離，如果大於 10 像素則視為拖曳旋轉
                 const dist = Math.sqrt(
                     Math.pow(e.clientX - pointerDownPos.current.x, 2) +
                     Math.pow(e.clientY - pointerDownPos.current.y, 2)
                 );
-                if (dist > 5) return;
+                if (!isPickingColor && dist > 10) return;
 
                 const mesh = e.object as THREE.Mesh;
+                const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+
+                if (isPickingColor && onColorPicked) {
+                    let pickedHex = null;
+                    const standardMat = mat as THREE.MeshStandardMaterial;
+                    const baseHex = '#' + standardMat.color.getHexString();
+
+                    if (baseHex.toLowerCase() !== '#ffffff') {
+                        pickedHex = baseHex;
+                    } else if (standardMat.map && standardMat.map.image && e.uv) {
+                        // 1. 如果有貼圖且未染色，嘗試讀取貼圖的該像素顏色 (未受光影影響的原始色)
+                        try {
+                            const canvas = document.createElement('canvas');
+                            const img = standardMat.map.image;
+                            canvas.width = img.width || img.videoWidth || 1024;
+                            canvas.height = img.height || img.videoHeight || 1024;
+                            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                            if (ctx) {
+                                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                
+                                // 套用材質的 UV 轉換矩陣 (處理 offset, repeat, rotation)
+                                const uv = e.uv.clone();
+                                if (standardMat.map.matrixAutoUpdate) {
+                                    standardMat.map.updateMatrix();
+                                }
+                                uv.applyMatrix3(standardMat.map.matrix);
+                                
+                                let u = uv.x % 1.0;
+                                let v = uv.y % 1.0;
+                                
+                                if (u < 0) u += 1.0;
+                                if (v < 0) v += 1.0;
+                                
+                                const px = Math.floor(u * canvas.width);
+                                // 根據貼圖的 flipY 屬性決定 Y 軸方向 (GLTF 預設為 false)
+                                const py = Math.floor((standardMat.map.flipY ? (1.0 - v) : v) * canvas.height);
+                                
+                                const pixel = ctx.getImageData(px, py, 1, 1).data;
+                                const toHex = (c: number) => {
+                                    const hex = Math.round(c).toString(16).toUpperCase();
+                                    return hex.length === 1 ? '0' + hex : hex;
+                                };
+                                pickedHex = `#${toHex(pixel[0])}${toHex(pixel[1])}${toHex(pixel[2])}`;
+                            }
+                        } catch(err) {
+                            console.warn("Texture pixel read failed, falling back to material color", err);
+                        }
+                    }
+
+                    // 2. 如果沒有貼圖或讀取失敗，回退讀取材質的 Base Color
+                    if (!pickedHex && standardMat.color) {
+                        pickedHex = '#' + standardMat.color.getHexString();
+                    }
+
+                    if (pickedHex) onColorPicked(pickedHex);
+                    document.body.style.cursor = 'auto'; // Reset cursor immediately
+                    return;
+                }
+
                 const interactiveFlag = modelId === 'traveler' ? true : isInteractive(mesh.name);
                 
                 if (!interactiveFlag) { onPartSelect(null); return; }
                 mesh.userData.glowEnergy = 1.0;
-                const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
                 
                 // 使用標準化的部位名稱以更新 UI
                 const normalizedPartName = getNormalizedPartName(mesh.name);
@@ -385,7 +559,7 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
           />;
 };
 
-const InnerScene = React.memo(({ url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, controls }: ModelProps) => {
+const InnerScene = React.memo(({ url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked }: ModelProps) => {
     const [modelBottom, setModelBottom] = useState(-0.1);
     return (
         <Group position={modelPosition}>
@@ -400,6 +574,8 @@ const InnerScene = React.memo(({ url, modelId, modelScale, modelRotation, modelP
                     onPartSelect={onPartSelect}
                     textureMap={textureMap}
                     controls={controls}
+                    isPickingColor={isPickingColor}
+                    onColorPicked={onColorPicked}
                 />
             </Center>
             <ContactShadows position={[0, modelBottom - 0.001, 0]} opacity={0.6} scale={1.5} blur={0.8} far={1.0} resolution={256} color="#000000" />
@@ -424,10 +600,29 @@ interface ModelViewerProps {
   shadowBlur: number;
   shadowNormalBias: number;
   autoRotate: boolean;
+  isPickingColor?: boolean;
+  onColorPicked?: (hex: string) => void;
 }
 
+const CameraResetter = ({ modelId, controlsRef }: { modelId?: string, controlsRef: any }) => {
+    const { camera } = useThree();
+    
+    useEffect(() => {
+        camera.position.set(...DEFAULT_VIEW.pos);
+        camera.lookAt(...DEFAULT_VIEW.target);
+        camera.updateProjectionMatrix();
+        
+        if (controlsRef.current) {
+            controlsRef.current.target.set(...DEFAULT_VIEW.target);
+            controlsRef.current.update();
+        }
+    }, [modelId, camera, controlsRef]);
+    
+    return null;
+};
+
 const ModelViewer = React.forwardRef<any, ModelViewerProps>(({ 
-    url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate
+    url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, isPickingColor, onColorPicked
 }, ref) => {
   const controlsRef = useRef<any>(null);
   const screenshotHandlerRef = useRef<any>(null);
@@ -464,7 +659,9 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             dampingFactor={0.05}
             autoRotate={autoRotate}
             autoRotateSpeed={3.0}
+            enabled={!isPickingColor}
         />
+        <CameraResetter modelId={modelId} controlsRef={controlsRef} />
         <ScreenshotHandler ref={screenshotHandlerRef} />
         <Suspense fallback={<Html center><div className="flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Initializing Scene...</p></div></Html>}>
             {/* Fixed key error by ensuring ErrorBoundary is recognized as a standard React component */}
@@ -479,6 +676,8 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
                     onPartSelect={onPartSelect}
                     textureMap={textureMap}
                     controls={controlsRef.current}
+                    isPickingColor={isPickingColor}
+                    onColorPicked={onColorPicked}
                 />
                 <Suspense fallback={null}>
                   <Environment preset={envPreset as any} environmentIntensity={envIntensity} environmentRotation={[0, (envRotation * Math.PI) / 180, 0]} />
