@@ -112,8 +112,9 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
     React.useImperativeHandle(ref, () => ({
         captureComposition: async () => {
             return new Promise<string>((resolve) => {
-                const originalPosition = camera.position.clone();
-                const originalRotation = camera.rotation.clone();
+                try {
+                    const originalPosition = camera.position.clone();
+                    const originalRotation = camera.rotation.clone();
                 const originalAspect = (camera as THREE.PerspectiveCamera).aspect;
                 const totalWidth = 2560;
                 const totalHeight = 1440;
@@ -131,7 +132,7 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(0, 0, totalWidth, totalHeight);
 
-                const renderAndDraw = (x: number, y: number, w: number, h: number, camPos: THREE.Vector3, lookAt: THREE.Vector3, up?: THREE.Vector3, customFov?: number) => {
+                const renderAndDraw = (x: number, y: number, w: number, h: number, camPos: THREE.Vector3, lookAt: THREE.Vector3, up?: THREE.Vector3, customFov?: number, customScale?: number) => {
                      const originalUp = camera.up.clone();
                      const originalFov = (camera as THREE.PerspectiveCamera).fov;
                      
@@ -141,40 +142,69 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                      camera.position.copy(camPos);
                      camera.lookAt(lookAt);
                      
-                     // 根據視圖類型微調 FOV，確保模型大小與參考圖一致且不被裁切
+                     // 1. 設定相機的 aspect ratio 為目標區塊的比例，確保擷取範圍完全吻合 (Off-screen render 完美比例)
+                     (camera as THREE.PerspectiveCamera).aspect = w / h;
+                     // 2. 根據視圖類型微調 FOV，確保模型大小與參考圖一致且不被裁切
                      (camera as THREE.PerspectiveCamera).fov = customFov || 30;
                      camera.updateProjectionMatrix();
                      camera.updateMatrixWorld();
                      
+                     // 3. 建立離線渲染目標 (Off-screen Render Target)，大小完全符合要繪製的區域
+                     // 為了在沒有 MSAA 支援的情況下達到最佳畫質，我們可以將解析度加倍 (Supersampling)
+                     const pixelRatio = 2; // Supersampling factor for anti-aliasing
+                     const renderW = w * pixelRatio;
+                     const renderH = h * pixelRatio;
+                     
+                     const renderTarget = new THREE.WebGLRenderTarget(renderW, renderH, {
+                         format: THREE.RGBAFormat,
+                         colorSpace: gl.outputColorSpace, // Match current color space (SRGBColorSpace)
+                         type: THREE.UnsignedByteType
+                     });
+                     
+                     const currentRenderTarget = gl.getRenderTarget();
+                     gl.setRenderTarget(renderTarget);
+                     
+                     // 為了避免背景變黑，將 clear color 設為白色
+                     const originalClearColor = new THREE.Color();
+                     gl.getClearColor(originalClearColor);
+                     const originalClearAlpha = gl.getClearAlpha();
+                     gl.setClearColor(0xffffff, 1);
+                     
                      gl.render(scene, camera);
+                     
+                     // 4. 讀取像素
+                     const buffer = new Uint8Array(renderW * renderH * 4);
+                     gl.readRenderTargetPixels(renderTarget, 0, 0, renderW, renderH, buffer);
+                     
+                     // 5. 還原渲染狀態
+                     gl.setRenderTarget(currentRenderTarget);
+                     gl.setClearColor(originalClearColor, originalClearAlpha);
+                     renderTarget.dispose();
+                     
+                     // 6. 將像素轉成 ImageData 並繪製到目標 ctx 上
+                     const imgData = new ImageData(new Uint8ClampedArray(buffer), renderW, renderH);
                      const tempCanvas = document.createElement('canvas');
-                     tempCanvas.width = gl.domElement.width;
-                     tempCanvas.height = gl.domElement.height;
+                     tempCanvas.width = renderW;
+                     tempCanvas.height = renderH;
                      const tempCtx = tempCanvas.getContext('2d');
-                     if(tempCtx) {
-                         tempCtx.drawImage(gl.domElement, 0, 0);
-                         const srcAspect = tempCanvas.width / tempCanvas.height;
-                         const destAspect = w / h;
+                     if (tempCtx) {
+                         tempCtx.putImageData(imgData, 0, 0);
                          
-                         // 使用 92% 的佔比，預留安全空間確保陰影不被裁切
-                         const scaleFactor = 0.92;
-                         const targetW = w * scaleFactor;
-                         const targetH = h * scaleFactor;
+                         ctx.save();
+                         // 因為 gl.readPixels 是由下往上讀取，所以 2D Canvas 需要垂直翻轉
+                         ctx.translate(x, y + h);
+                         ctx.scale(1, -1);
                          
-                         let drawW, drawH, drawX, drawY;
+                         // 使用預設的 92% 佔比，或套用自訂縮放來調整特定區塊的大小
+                         const scaleFactor = customScale || 0.92;
+                         const drawW = w * scaleFactor;
+                         const drawH = h * scaleFactor;
+                         const drawX = (w - drawW) / 2;
+                         const drawY = (h - drawH) / 2;
                          
-                         if (srcAspect > destAspect) {
-                             drawW = targetW; 
-                             drawH = targetW / srcAspect; 
-                             drawX = x + (w - drawW) / 2; 
-                             drawY = y + (h - drawH) / 2;
-                         } else {
-                             drawH = targetH; 
-                             drawW = targetH * srcAspect; 
-                             drawY = y + (h - drawH) / 2; 
-                             drawX = x + (w - drawW) / 2;
-                         }
+                         // 將大張的 off-screen canvas 縮小繪製上去 (達到 Anti-aliasing 效果)
                          ctx.drawImage(tempCanvas, drawX, drawY, drawW, drawH);
+                         ctx.restore();
                      }
                      
                      camera.up.copy(originalUp);
@@ -193,16 +223,20 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                 // 3. 右上：45度角視圖 (Perspective View)
                 renderAndDraw(halfWidth + gutter, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.55, 0.4, 0.55), lookAtCenter);
                 
-                // 4. 右下左：鞋頭視角 (Toe View)
-                renderAndDraw(halfWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, 0.8), lookAtCenter, undefined, 28);
+                // 4. 右下左：鞋頭視角 (Toe View) (縮小15% -> 0.92 * 0.85 = 0.782)
+                renderAndDraw(halfWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, 0.8), lookAtCenter, undefined, 28, 0.782);
                 
-                // 5. 右下右：鞋跟視角 (Heel View)
-                renderAndDraw(halfWidth + quarterWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, -0.8), lookAtCenter, undefined, 28);
+                // 5. 右下右：鞋跟視角 (Heel View) (縮小15% -> 0.92 * 0.85 = 0.782)
+                renderAndDraw(halfWidth + quarterWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, -0.8), lookAtCenter, undefined, 28, 0.782);
                 camera.position.copy(originalPosition);
                 camera.rotation.copy(originalRotation);
                 (camera as THREE.PerspectiveCamera).aspect = originalAspect;
                 camera.updateProjectionMatrix();
                 resolve(canvas.toDataURL('image/png', 0.9));
+                } catch (error) {
+                    console.error("Screenshot error:", error);
+                    resolve('');
+                }
             });
         }
     }));

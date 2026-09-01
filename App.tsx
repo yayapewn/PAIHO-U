@@ -306,11 +306,11 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void,
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-700">
-      <div className="flex gap-4 items-stretch">
+      <div className="flex gap-1 items-stretch bg-gray-100 border border-gray-200 rounded-[2px] overflow-hidden">
         {/* HS 調色盤 - 高度減少 1/3，使用 3:2 比例 */}
         <div 
           ref={hsRef}
-          className="relative flex-1 aspect-[3/2] rounded-[24px] cursor-crosshair overflow-hidden touch-none"
+          className="relative flex-1 aspect-[3/2] cursor-crosshair overflow-hidden touch-none"
           style={{ 
             background: `
               linear-gradient(to bottom, transparent, #fff),
@@ -327,14 +327,14 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void,
 
         <div 
           ref={vRef}
-          className="relative w-5 rounded-full cursor-pointer touch-none"
+          className="relative w-8 cursor-pointer touch-none border-l border-gray-200"
           style={{ 
               background: `linear-gradient(to bottom, ${rgbToHex(hsvToRgb(hsv.h, hsv.s, 100).r, hsvToRgb(hsv.h, hsv.s, 100).g, hsvToRgb(hsv.h, hsv.s, 100).b)}, #000)` 
           }}
           onPointerDown={handlePointerDownV}
         >
           <div 
-            className="absolute left-1/2 -translate-x-1/2 w-5 h-5 bg-white border border-gray-100 rounded-full shadow-md -translate-y-1/2 pointer-events-none"
+            className="absolute left-0 w-full h-2 bg-white border-y border-gray-400 shadow-sm -translate-y-1/2 pointer-events-none"
             style={{ top: `${100 - hsv.v}%` }}
           ></div>
         </div>
@@ -347,14 +347,14 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void,
                   <div className="relative flex items-center" ref={dropdownRef}>
                       <button 
                           onClick={() => setIsModeDropdownOpen(!isModeDropdownOpen)}
-                          className="flex items-center justify-center gap-1 px-2 py-1 text-[9px] font-bold text-gray-500 bg-transparent outline-none cursor-pointer hover:text-indigo-600 hover:bg-gray-100 rounded-md transition-all"
+                          className="flex items-center justify-center gap-1 px-2 py-1 text-[9px] font-bold text-gray-500 bg-transparent outline-none cursor-pointer hover:text-indigo-600 hover:bg-gray-100 rounded-[2px] transition-all"
                       >
                           <span className="leading-none pt-[1px]">{colorMode}</span>
                           <ChevronDown size={10} strokeWidth={3} className={`transition-transform duration-300 ${isModeDropdownOpen ? 'rotate-180' : ''}`} />
                       </button>
                       
                       {isModeDropdownOpen && (
-                          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 bg-white border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.08)] rounded-xl overflow-hidden z-[100] min-w-[72px] animate-in fade-in zoom-in-95 duration-200">
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 bg-white border border-gray-200 shadow-lg rounded-[2px] overflow-hidden z-[100] min-w-[72px] animate-in fade-in zoom-in-95 duration-200">
                               {(['HEX', 'RGB', 'HSL', 'LAB'] as ColorMode[]).map((mode) => (
                                   <button
                                       key={mode}
@@ -375,7 +375,7 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void,
                       )}
                   </div>
               </div>
-              <div className="bg-gray-50 rounded-xl px-4 py-3 border border-transparent focus-within:border-indigo-100 transition-all flex items-center h-[52px]">
+              <div className="bg-gray-50 px-4 py-3 border border-gray-200 focus-within:border-indigo-600 transition-all flex items-center h-[52px] rounded-[2px]">
                   <input 
                     type="text" 
                     value={inputText}
@@ -427,12 +427,12 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void,
           </div>
           <button 
             onClick={onTogglePick}
-            className={`h-[52px] w-[52px] flex items-center justify-center rounded-xl transition-colors border ${isPickingColor ? 'bg-indigo-100 text-indigo-600 border-indigo-200 shadow-sm' : 'bg-gray-50 text-gray-400 hover:text-indigo-500 hover:bg-gray-200/50 border-transparent'}`}
+            className={`h-[52px] w-[52px] flex items-center justify-center transition-colors border rounded-[2px] ${isPickingColor ? 'bg-indigo-50 text-indigo-600 border-indigo-600' : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300 hover:text-indigo-600'}`}
             title="Pick color from 3D model"
           >
             <Pipette size={20} />
           </button>
-          <div className="w-full h-[52px] bg-gray-50 rounded-xl overflow-hidden shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] border border-gray-100" style={{ backgroundColor: color }}></div>
+          <div className="w-full h-[52px] bg-gray-50 overflow-hidden border border-gray-200 shadow-inner rounded-[2px]" style={{ backgroundColor: color }}></div>
       </div>
     </div>
   );
@@ -624,15 +624,15 @@ const App: React.FC = () => {
   }, [selectedPart, partTextures, libraries]);
 
   const asideClasses = useMemo(() => {
-    const base = "fixed z-[60] bg-white/70 backdrop-blur-2xl transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible pb-[env(safe-area-inset-bottom)]";
-    let mobileState = "bottom-0 left-0 w-full h-[32dvh] rounded-t-[20px] md:rounded-none border-t border-gray-200/50";
+    const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible pb-[env(safe-area-inset-bottom)]";
+    let mobileState = "bottom-0 left-0 w-full h-[32dvh] md:rounded-none border-t border-gray-200";
     
     if (selectedPart) mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
     else mobileState += " translate-y-full";
     
     // 平板範圍 (768px ~ 1279px): 360px
     // 電腦範圍 (1280px 以上): 400px
-    let desktopState = "md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-full md:w-[320px] xl:w-[400px] md:border-t-0 md:border-l md:border-gray-200/50 md:translate-y-0";
+    let desktopState = "md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-full md:w-[320px] xl:w-[400px] md:border-t-0 md:border-l md:border-gray-200 md:translate-y-0";
     if (selectedPart) desktopState += isPanelVisible ? " md:translate-x-0 md:shadow-[-20px_0_40px_rgba(0,0,0,0.03)]" : " md:translate-x-full";
     else desktopState += " md:translate-x-full";
     
@@ -667,6 +667,9 @@ const App: React.FC = () => {
               className={`px-6 py-2 text-[10px] uppercase tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'font-bold text-gray-900' : 'font-medium text-gray-400 hover:text-gray-600'}`}
             >
               {model.name}
+              {activeModelIndex === idx && (
+                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-[1px] bg-gray-900"></div>
+              )}
             </button>
           ))}
           <button
@@ -816,7 +819,7 @@ const App: React.FC = () => {
             {selectedPart && (
               <button 
                 onClick={(e) => { e.stopPropagation(); setIsPanelVisible(!isPanelVisible); }}
-                className="hidden md:flex absolute top-1/2 -translate-y-1/2 -left-10 z-50 items-center justify-center w-10 h-24 bg-white border border-gray-100 shadow-[-10px_0_30px_rgba(0,0,0,0.08)] rounded-l-2xl transition-all duration-500 hover:bg-gray-50 text-gray-400 hover:text-indigo-600"
+                className="hidden md:flex absolute top-1/2 -translate-y-1/2 -left-10 z-50 items-center justify-center w-10 h-24 bg-white border border-gray-200 border-r-0 shadow-[-4px_0_12px_rgba(0,0,0,0.05)] rounded-l-[2px] transition-all duration-500 hover:bg-gray-50 text-gray-400 hover:text-indigo-600"
               >
                 {isPanelVisible ? <ChevronRight size={20} strokeWidth={3} /> : <ChevronLeft size={20} strokeWidth={3} />}
               </button>
@@ -826,15 +829,15 @@ const App: React.FC = () => {
               <div className="md:hidden absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full px-2">
                  <button 
                   onClick={(e) => { e.stopPropagation(); setIsPanelVisible(!isPanelVisible); }}
-                  className="w-20 h-10 bg-white border-t border-x border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] rounded-t-2xl flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-all duration-500"
+                  className="w-20 h-10 bg-white border-t border-x border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-[2px] flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-all duration-500"
                 >
                    {isPanelVisible ? <ChevronDown size={20} strokeWidth={3} /> : <ChevronUp size={20} strokeWidth={3} />}
                 </button>
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-10 pt-8 md:px-7 md:pt-12 md:pb-10 flex flex-col h-full">
-                <div className="flex-1 space-y-10 md:space-y-12">
+            <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col h-full">
+                <div className="px-6 pb-10 pt-8 md:px-7 md:pt-12 md:pb-10 flex-1 space-y-10 md:space-y-12">
                     {selectedPart ? (
                         <div key={selectedPart.id} className="space-y-10 md:space-y-12 animate-in fade-in slide-in-from-bottom-8 md:slide-in-from-right-10 duration-700">
                             
@@ -843,14 +846,14 @@ const App: React.FC = () => {
                               <section>
                                   <div className="flex justify-between items-center mb-5 px-1">
                                       <div className="flex flex-col gap-1.5">
-                                          <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Library</h3>
+                                          <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-900 leading-none">Library</h3>
                                           <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                       </div>
                                   </div>
-                                  <div className="grid grid-cols-4 gap-2 md:gap-3 px-1">
+                                  <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-[2px] border border-gray-200 bg-white rounded-[2px] overflow-hidden">
                                       {libraries.materials.map(t => (
-                                          <button key={t.id} onClick={(e) => { e.stopPropagation(); applyTexture(t); }} className={`aspect-square rounded-[22px] overflow-hidden transition-all border-2 group ${currentTextureConfig?.url === t.url ? 'border-indigo-600 scale-[0.98] shadow-xl shadow-indigo-100/30' : 'border-transparent bg-gray-50 hover:border-gray-100'}`}>
-                                              <img src={t.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={t.name} />
+                                          <button key={t.id} onClick={(e) => { e.stopPropagation(); applyTexture(t); }} className={`aspect-square overflow-hidden transition-all relative group bg-white ${currentTextureConfig?.url === t.url ? 'ring-[3px] ring-inset ring-indigo-600 z-10' : 'hover:opacity-90'}`}>
+                                              <img src={t.url} className="w-full h-full object-cover transition-transform duration-700" alt={t.name} />
                                           </button>
                                       ))}
                                   </div>
@@ -861,7 +864,7 @@ const App: React.FC = () => {
                             <section>
                                 <div className="flex justify-between items-center mb-6 px-1">
                                     <div className="flex flex-col gap-1.5">
-                                        <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Spectrum</h3>
+                                        <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-900 leading-none">Spectrum</h3>
                                         <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                     </div>
                                 </div>
@@ -883,7 +886,7 @@ const App: React.FC = () => {
                             {/* 環境設定部分 */}
                             <section>
                                  <div className="flex flex-col gap-1.5 mb-5 px-1">
-                                    <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Atmosphere</h3>
+                                    <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-900 leading-none">Atmosphere</h3>
                                     <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                 </div>
                                 <div className="space-y-10 px-1">
@@ -907,8 +910,8 @@ const App: React.FC = () => {
                     ) : null}
                 </div>
 
-                <div className="mt-8 pt-8 border-t border-gray-100 shrink-0">
-                    <button onClick={handleShare} className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-black text-white rounded-[24px] text-[10px] font-black uppercase tracking-[0.2em] transition-all hover:bg-gray-800 active:scale-95 shadow-lg shadow-black/10">
+                <div className="border-t border-gray-200 shrink-0 mt-auto bg-black">
+                    <button onClick={handleShare} className="w-full flex items-center justify-center gap-3 px-6 py-5 bg-black text-white text-[10px] font-black uppercase tracking-[0.2em] transition-all hover:bg-gray-900 active:scale-[0.98]">
                         <Share2 size={16} /> <span>Share Design</span>
                     </button>
                 </div>
