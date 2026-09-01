@@ -1126,7 +1126,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             absolute left-1/2 -translate-x-1/2 z-10 
             transition-all duration-500 ease-out animate-in fade-in slide-in-from-top-4
             flex flex-col items-center gap-4 w-full px-8 max-w-xl text-center
-            top-[calc(18dvh-5px)] lg:top-32
+            top-[85px] lg:top-32
         `}>
           <div className="flex items-center gap-3 px-6 py-2.5 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_rgba(0,0,0,0.05)] whitespace-nowrap">
             <span className="w-2.5 h-2.5 shrink-0 rounded-full bg-indigo-500 animate-pulse"></span>
