@@ -215,16 +215,17 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                 const isMobile = window.innerWidth < 768;
                 const baseFov = isMobile ? 16 : 30;
                 const detailFov = isMobile ? 14 : 28;
+                const topScale = isMobile ? 0.874 : undefined; // 縮小 5%
                 const lookAtCenter = new THREE.Vector3(0, 0, 0);
                 
                 // 1. 左上：正側視圖 (Side View)
-                renderAndDraw(0, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.75, 0, 0), lookAtCenter, undefined, baseFov);
+                renderAndDraw(0, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.75, 0, 0), lookAtCenter, undefined, baseFov, topScale);
                 
                 // 2. 左下：上視圖 (Top View)
                 renderAndDraw(0, halfHeight + gutter, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0.75, 0), lookAtCenter, new THREE.Vector3(-1, 0, 0), baseFov);
                 
                 // 3. 右上：45度角視圖 (Perspective View)
-                renderAndDraw(halfWidth + gutter, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.55, 0.4, 0.55), lookAtCenter, undefined, baseFov);
+                renderAndDraw(halfWidth + gutter, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.55, 0.4, 0.55), lookAtCenter, undefined, baseFov, topScale);
                 
                 // 4. 右下左：鞋頭視角 (Toe View) (縮小15% -> 0.92 * 0.85 = 0.782)
                 renderAndDraw(halfWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, 0.8), lookAtCenter, undefined, detailFov, 0.782);

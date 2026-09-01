@@ -639,6 +639,39 @@ const App: React.FC = () => {
     return `${base} ${mobileState} ${desktopState}`;
   }, [selectedPart, isPanelVisible]);
 
+  const handleDownload = async (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (!screenshotUrl) return;
+      
+      // 判斷是否為行動裝置，並嘗試使用 Native Share API 直接儲存或分享
+      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+          try {
+              const res = await fetch(screenshotUrl);
+              const blob = await res.blob();
+              const file = new File([blob], 'design-render.png', { type: 'image/png' });
+              
+              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                  await navigator.share({
+                      files: [file],
+                      title: 'The Masterpiece',
+                      text: 'Captured in Ultra High Definition',
+                  });
+                  return;
+              }
+          } catch (error) {
+              console.error("Share API error:", error);
+          }
+      }
+      
+      // Fallback: 傳統下載方式 (桌面版或 Share API 失敗時)
+      const link = document.createElement('a');
+      link.href = screenshotUrl;
+      link.download = 'design-render.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
   return (
     <div className="flex flex-col h-[100dvh] bg-white text-[#1a1a1a] overflow-hidden font-sans">
       
@@ -941,9 +974,9 @@ const App: React.FC = () => {
                                 <img src={screenshotUrl!} className="w-full h-auto" alt="Final Design" />
                             </div>
                             <div className="flex justify-center">
-                                <a href={screenshotUrl!} download="design-render.png" className="flex items-center gap-4 bg-transparent text-black border border-black px-12 py-6 rounded-[30px] font-black text-xs uppercase tracking-[0.2em] transition-all hover:bg-black hover:text-white active:scale-95 shadow-xl">
+                                <button onClick={handleDownload} className="flex items-center gap-4 bg-transparent text-black border border-black px-12 py-6 rounded-[30px] font-black text-xs uppercase tracking-[0.2em] transition-all hover:bg-black hover:text-white active:scale-95 shadow-xl">
                                     <Download size={20} /> Download UHD Image
-                                </a>
+                                </button>
                             </div>
                         </>
                     )}
