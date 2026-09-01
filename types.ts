@@ -22,6 +22,7 @@ export interface TextureConfig {
   opacity: number;
   // Color Tint
   color?: string;
+  originalRoughness?: number; // Roughness for original material
 }
 
 export interface SelectedPart {

@@ -1,6 +1,6 @@
 import React, { Component, useEffect, useState, Suspense, useRef, ErrorInfo, useMemo, ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Html, Loader, Environment, PerspectiveCamera, Center, ContactShadows, AdaptiveDpr, AdaptiveEvents } from '@react-three/drei';
+import { OrbitControls, useGLTF, Html, useProgress, Environment, PerspectiveCamera, Center, ContactShadows, AdaptiveDpr, AdaptiveEvents } from '@react-three/drei';
 import * as THREE from 'three';
 import { SelectedPart, TextureConfig, TextureItem } from '../types';
 
@@ -13,7 +13,10 @@ const MAIN_PARTS = [
 // 包含模型原始 ID 的互動關鍵字
 const INTERACTIVE_KEYWORDS = [
   ...MAIN_PARTS,
-  'Shape027_1', 'Shape027', 'Line040', 'Shape026'
+  'Shape027_1', 'Shape027', 'Line040', 'Shape026', 'Line048',
+  'OBJECT011', 'OBJECT018', 'OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 
+  'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 
+  'HEEL STRAP', 'QUARTER OVERLAY', 'SHOELACE'
 ];
 
 const DEFAULT_VIEW = {
@@ -47,7 +50,7 @@ const getNormalizedPartName = (meshName: string): string => {
     if (upperName.includes('TONGUE')) return 'Tongue';
     
     if (upperName.includes('HEEL_PULL_TAB')) return 'Heel Pull Tab';
-    if (upperName.includes('HEEL_COLLAR_REINFORCEMENT')) return 'Heel Collar Reinforcement';
+    if (upperName.includes('HEEL_COLLAR_REINFORCEMENT') || upperName.includes('HEEL COLLAR REINFORCEMENT') || upperName.includes('OBJECT018')) return 'Heel Collar Reinforcement';
     if (upperName.includes('HEEL_COUNTER')) return 'Heel Counter';
     if (upperName.includes('HEEL_STRAP')) return 'Heel Strap';
     
@@ -62,6 +65,7 @@ const getNormalizedPartName = (meshName: string): string => {
     if (upperName.includes('WELT')) return 'Welt';
     if (upperName.includes('COLLAR')) return 'Collar';
     if (upperName.includes('PULL_TAB')) return 'Pull Tab';
+    if (upperName.includes('LINE048')) return 'Line048';
     
     // 預設處理：移除底線與結尾數字，並轉為首字母大寫
     return meshName
@@ -73,8 +77,23 @@ const getNormalizedPartName = (meshName: string): string => {
         .join(' ');
 };
 
-const isInteractive = (name: string) => {
-    return INTERACTIVE_KEYWORDS.some(keyword => name && name.toUpperCase().includes(keyword.toUpperCase()));
+const isInteractive = (name: string, modelId?: string) => {
+    if (!name) return false;
+    const upperName = name.toUpperCase();
+    
+    // 黑名單：不管什麼鞋款，這些部位絕對不可互動 (Static Read-only)
+    const blacklist = ['OBJECT021', 'OBJECT022', 'OBJECT001'];
+    if (blacklist.some(bl => upperName.includes(bl))) {
+        return false;
+    }
+    
+    // 如果是 traveler 模型，除了黑名單外的所有網格都視為可互動
+    if (modelId === 'traveler') {
+        return true;
+    }
+    
+    // 其他鞋款則使用白名單機制
+    return INTERACTIVE_KEYWORDS.some(keyword => upperName.includes(keyword.toUpperCase()));
 };
 
 const isUrlSafe = (url: string) => {
@@ -238,6 +257,152 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+const CustomLoader = ({ hasWireframe }: { hasWireframe: boolean }) => {
+  const { active, progress, item } = useProgress();
+  const [show, setShow] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const mountTime = useRef(Date.now());
+  const timeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (active) {
+        mountTime.current = Date.now();
+        setShow(true);
+        setVisible(true);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    } else {
+        timeoutRef.current = setTimeout(() => {
+            setShow(false);
+            setTimeout(() => setVisible(false), 500);
+        }, 0);
+    }
+    return () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [active]);
+
+  if (!visible || hasWireframe) return null;
+
+  return (
+    <div className={`absolute inset-0 z-50 flex items-center justify-center pointer-events-none transition-opacity duration-500 ${show ? 'opacity-100' : 'opacity-0'} bg-[#0a0a0a]`}>
+      <div className="w-72 flex flex-col gap-5">
+        {/* Wireframe Hexagon Icon */}
+        <div className="w-full flex justify-center mb-4">
+          <svg className="w-12 h-12 text-indigo-500/80 animate-[spin_4s_linear_infinite]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
+            <line x1="12" y1="22" x2="12" y2="15.5"></line>
+            <polyline points="22 8.5 12 15.5 2 8.5"></polyline>
+            <polyline points="2 15.5 12 8.5 22 15.5"></polyline>
+            <line x1="12" y1="2" x2="12" y2="8.5"></line>
+          </svg>
+        </div>
+        
+        {/* Data HUD */}
+        <div className="flex justify-between items-end">
+          <span className="text-[9px] font-mono tracking-[0.3em] text-gray-500 uppercase">System Ready</span>
+          <span className="text-[12px] font-mono tracking-widest text-indigo-400">{Math.round(progress)}%</span>
+        </div>
+        <div className="h-[1px] w-full bg-gray-900 relative overflow-hidden">
+          <div className="absolute top-0 left-0 h-full bg-indigo-500/80 transition-all duration-300 ease-out" style={{ width: `${progress}%` }} />
+        </div>
+        <div className="text-[8px] font-mono tracking-[0.4em] text-gray-600 truncate uppercase">
+          {item ? `Building: ${item.split('/').pop()}` : 'Initializing Geometry...'}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const animatedModels = new Set<string>();
+
+const LoadingWireframeMesh = ({ url, scale, rotation, position, active, onComplete }: { url: string, scale: number, rotation: any, position: any, active: boolean, onComplete: () => void }) => {
+    const { scene } = useGLTF(url);
+    const meshRef = useRef<THREE.Group>(null);
+    const progress = useRef(0);
+    
+    useFrame((state, delta) => {
+        if (!meshRef.current) return;
+        
+        const DURATION = 3.0; // Slowed down by 1x (half speed)
+        const safeDelta = Math.min(delta, 0.1); 
+        progress.current += safeDelta / DURATION;
+        
+        let isDone = false;
+        if (progress.current >= 1.0) {
+            if (!active) {
+                isDone = true;
+                progress.current = 1.0;
+            } else {
+                progress.current -= 1.0; // Loop seamlessly
+            }
+        }
+        
+        const p = Math.max(0, Math.min(progress.current, 1.0));
+        // easeInOutCubic
+        const ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        
+        meshRef.current.rotation.x = rotation[0];
+        meshRef.current.rotation.z = rotation[2];
+        meshRef.current.scale.setScalar(scale);
+        
+        const targetY = rotation[1];
+        const startY = targetY - Math.PI * 2;
+        meshRef.current.rotation.y = startY + (Math.PI * 2) * ease;
+        
+        if (isDone) {
+            onComplete();
+        }
+    });
+
+    useMemo(() => {
+        scene.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                const mesh = child as THREE.Mesh;
+                mesh.material = new THREE.MeshStandardMaterial({
+                    color: '#818cf8',
+                    emissive: '#4f46e5',
+                    emissiveIntensity: 0.8,
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.3,
+                });
+            }
+        });
+    }, [scene]);
+
+    return (
+        <group position={position}>
+            <Center>
+                <primitive object={scene} ref={meshRef} scale={scale} rotation={rotation} />
+            </Center>
+        </group>
+    );
+};
+
+const LoadingWireframeOverlay = ({ url, scale, rotation, position, modelId, onComplete }: { url: string, scale: number, rotation: any, position: any, modelId: string, onComplete: () => void }) => {
+    const { active } = useProgress();
+    
+    const adjustedScale = modelId === 'traveler' ? scale * 0.98 : scale;
+    
+    if (!url) return null;
+    
+    return (
+        <Suspense fallback={null}>
+            <LoadingWireframeMesh 
+                url={url} 
+                scale={adjustedScale} 
+                rotation={rotation} 
+                position={position} 
+                active={active} 
+                onComplete={() => {
+                    animatedModels.add(modelId || '');
+                    onComplete();
+                }} 
+            />
+        </Suspense>
+    );
+};
+
 interface ModelProps {
   url: string;
   modelId?: string;
@@ -270,12 +435,29 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
         const mesh = child as THREE.Mesh;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        if (!mesh.userData.hasClonedMaterial) {
+            if (Array.isArray(mesh.material)) {
+                mesh.material = mesh.material.map(m => m.clone());
+            } else {
+                mesh.material = (mesh.material as THREE.Material).clone();
+            }
+            mesh.userData.hasClonedMaterial = true;
+        }
+
         if (!mesh.userData.originalMaterial) {
-            mesh.userData.originalMaterial = mesh.material;
+            mesh.userData.originalMaterial = Array.isArray(mesh.material) 
+                ? mesh.material[0].clone() 
+                : (mesh.material as THREE.Material).clone();
+                
+            // 針對鞋墊 (OBJECT019)，從最源頭剝離其光澤度，確保初始與還原時都無光澤
+            if (getNormalizedPartName(mesh.name).toUpperCase() === 'OBJECT019') {
+                mesh.userData.originalMaterial.roughness = 1.0;
+                mesh.userData.originalMaterial.roughnessMap = null;
+            }
         }
         
-        // 如果是 traveler 模型，則所有網格都視為可互動
-        const interactiveFlag = modelId === 'traveler' ? true : isInteractive(mesh.name);
+        // 使用 isInteractive 來判斷是否為可互動部位 (支援黑白名單機制)
+        const interactiveFlag = isInteractive(mesh.name, modelId);
 
         if (interactiveFlag) {
             interactive.push(mesh);
@@ -291,8 +473,55 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
                     newMat.emissiveIntensity = 0;
                 }
 
+                // SMART COLOR LOGIC FOR LOGO RETENTION
+                const pName = getNormalizedPartName(mesh.name).toUpperCase();
+                const isSmartPart = ['OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'OUTSOLE'].includes(pName);
 
+                if (isSmartPart) {
+                    newMat.userData.shaderUniforms = {
+                        uSmartColorEnabled: { value: 0.0 },
+                        uIsSmartInsole: { value: pName === 'OBJECT019' ? 1.0 : 0.0 }
+                    };
 
+                    newMat.onBeforeCompile = (shader: any) => {
+                        shader.uniforms.uSmartColorEnabled = newMat.userData.shaderUniforms.uSmartColorEnabled;
+                        shader.uniforms.uIsSmartInsole = newMat.userData.shaderUniforms.uIsSmartInsole;
+
+                        shader.fragmentShader = `
+                            uniform float uSmartColorEnabled;
+                            uniform float uIsSmartInsole;
+                            ${shader.fragmentShader}
+                        `;
+
+                        shader.fragmentShader = shader.fragmentShader.replace(
+                            '#include <map_fragment>',
+                            `
+                            #include <map_fragment>
+                            #ifdef USE_MAP
+                                if ( uSmartColorEnabled > 0.5 ) {
+                                    // 1. Multiply blending for the background and black text
+                                    // This natively perfectly handles anti-aliasing for black text and gray shadows.
+                                    vec3 tintedCanvas = sampledDiffuseColor.rgb * diffuse;
+                                    
+                                    // 2. Logo Protection Mask (Red Dominance)
+                                    // Extract how "red" the pixel is. 1.5 multiplier ensures the core logo is fully protected 
+                                    // even if it's a slightly darker red, while smoothstep/clamp handles the anti-aliased edges.
+                                    float redDominance = sampledDiffuseColor.r - max(sampledDiffuseColor.g, sampledDiffuseColor.b);
+                                    float logoAlpha = clamp(redDominance * 1.5, 0.0, 1.0);
+                                    
+                                    // 3. Mathematical Un-Premultiply for Red Logo
+                                    // We only need to restore the Red channel that might be destroyed by tintedCanvas (e.g. if diffuse is Cyan).
+                                    // The G and B channels of the red logo are naturally dark and can safely be multiplied.
+                                    vec3 redRestore = vec3(sampledDiffuseColor.r, 0.0, 0.0);
+                                    
+                                    // Final Color: Tinted Canvas + Restored Red (only where background color suppressed it)
+                                    diffuseColor.rgb = tintedCanvas + logoAlpha * redRestore * (vec3(1.0) - diffuse);
+                                }
+                            #endif
+                            `
+                        );
+                    };
+                }
                 mesh.material = newMat;
                 mesh.userData.isCustomMaterial = true;
                 mesh.userData.glowEnergy = 0;
@@ -300,29 +529,47 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
         }
       }
     });
+
     return interactive;
   }, [scene, modelId]);
 
   useEffect(() => {
     const handlePreviewColor = (e: any) => {
       const { partId, color } = e.detail;
-      const mesh = cachedMeshes.find(m => m.uuid === partId);
-      if (mesh) {
-        const material = mesh.material as THREE.MeshStandardMaterial;
-        if (material && material.color) {
-            material.color.set(color);
-            
-            const upperName = getNormalizedPartName(mesh.name).toUpperCase();
-            if (['TONGUE', 'MIDSOLE', 'OUTSOLE'].includes(upperName)) {
-                let changed = false;
-                if (material.map !== null) { material.map = null; changed = true; }
-                if (material.aoMap !== null) { material.aoMap = null; changed = true; }
-                if (material.lightMap !== null) { material.lightMap = null; changed = true; }
-                if (material.emissiveMap !== null) { material.emissiveMap = null; changed = true; }
-                if (material.vertexColors) { material.vertexColors = false; changed = true; }
-                if (changed) material.needsUpdate = true;
+      const clickedMesh = cachedMeshes.find(m => m.uuid === partId);
+      
+      if (clickedMesh) {
+        const targetPartName = getNormalizedPartName(clickedMesh.name);
+        
+        cachedMeshes.forEach(mesh => {
+            if (getNormalizedPartName(mesh.name) === targetPartName) {
+                const material = mesh.material as THREE.MeshStandardMaterial;
+                if (material && material.color) {
+                    material.color.set(color);
+                    
+                    const upperName = targetPartName.toUpperCase();
+                    
+                    let categoryBParts: string[] = [];
+                    if (modelId === 'traveler') {
+                        categoryBParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
+                    } else if (modelId === 'lace') {
+                        categoryBParts = ['TONGUE', 'OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
+                    } else {
+                        categoryBParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
+                    }
+
+                    if (categoryBParts.includes(upperName)) {
+                        let changed = false;
+                        if (material.map !== null) { material.map = null; changed = true; }
+                        if (material.aoMap !== null) { material.aoMap = null; changed = true; }
+                        if (material.lightMap !== null) { material.lightMap = null; changed = true; }
+                        if (material.emissiveMap !== null) { material.emissiveMap = null; changed = true; }
+                        if (material.vertexColors) { material.vertexColors = false; changed = true; }
+                        if (changed) material.needsUpdate = true;
+                    }
+                }
             }
-        }
+        });
       }
     };
     window.addEventListener('preview-part-color', handlePreviewColor);
@@ -331,17 +578,34 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
 
   useEffect(() => {
     cachedMeshes.forEach(mesh => {
-      const config = textureMap[mesh.uuid];
+      const partName = getNormalizedPartName(mesh.name);
+      const partKey = `${modelId}_${partName}`;
+      const config = textureMap[partKey];
       if (config) {
         const material = mesh.material as THREE.MeshStandardMaterial;
         if (config.color) material.color.set(config.color);
         else material.color.setHex(0xffffff);
-        material.roughness = config.roughness;
-        material.metalness = config.metalness;
-        material.opacity = config.opacity;
-        material.alphaTest = 0.05;
 
         const origMat = Array.isArray(mesh.userData.originalMaterial) ? mesh.userData.originalMaterial[0] : mesh.userData.originalMaterial;
+
+        if (config.url && isUrlSafe(config.url)) {
+            material.roughness = config.roughness;
+            if (material.roughnessMap !== null) { material.roughnessMap = null; material.needsUpdate = true; }
+            if (material.metalnessMap !== null) { material.metalnessMap = null; material.needsUpdate = true; }
+        } else {
+            material.roughness = origMat.roughness;
+            if (material.roughnessMap !== origMat.roughnessMap) { material.roughnessMap = origMat.roughnessMap; material.needsUpdate = true; }
+            if (material.metalnessMap !== origMat.metalnessMap) { material.metalnessMap = origMat.metalnessMap; material.needsUpdate = true; }
+        }
+        material.metalness = config.metalness !== undefined ? config.metalness : origMat.metalness;
+        material.opacity = config.opacity;
+        material.alphaTest = 0.05;
+        
+        if (material.userData.shaderUniforms) {
+            // Enable smart color if NO external texture is applied.
+            const hasExternal = !!(config.url && isUrlSafe(config.url));
+            material.userData.shaderUniforms.uSmartColorEnabled.value = hasExternal ? 0.0 : 1.0;
+        }
 
         if (config.url && isUrlSafe(config.url)) {
             if (mesh.userData.currentTextureUrl !== config.url) {
@@ -379,7 +643,18 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
             }
         } else {
             const upperName = getNormalizedPartName(mesh.name).toUpperCase();
-            const isCategoryB = ['TONGUE', 'MIDSOLE', 'OUTSOLE'].includes(upperName);
+            
+            let categoryBParts: string[] = [];
+            if (modelId === 'traveler') {
+                categoryBParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
+            } else if (modelId === 'lace') {
+                categoryBParts = ['TONGUE', 'OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
+            } else {
+                categoryBParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
+            }
+            
+            const isCategoryB = categoryBParts.includes(upperName);
+            
             if (isCategoryB) {
                 let changed = false;
                 if (material.map !== null) { material.map = null; changed = true; }
@@ -392,9 +667,29 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
                     material.needsUpdate = true;
                 }
             } else {
+                let changed = false;
                 if (material.map !== origMat.map) {
                     if (material.map && material.map !== origMat.map) material.map.dispose();
                     material.map = origMat.map;
+                    changed = true;
+                }
+                if (material.aoMap !== origMat.aoMap) {
+                    material.aoMap = origMat.aoMap;
+                    changed = true;
+                }
+                if (material.lightMap !== origMat.lightMap) {
+                    material.lightMap = origMat.lightMap;
+                    changed = true;
+                }
+                if (material.emissiveMap !== origMat.emissiveMap) {
+                    material.emissiveMap = origMat.emissiveMap;
+                    changed = true;
+                }
+                if (material.vertexColors !== origMat.vertexColors) {
+                    material.vertexColors = origMat.vertexColors;
+                    changed = true;
+                }
+                if (changed) {
                     mesh.userData.currentTextureUrl = null;
                     material.needsUpdate = true;
                 }
@@ -441,6 +736,72 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
                 material.needsUpdate = true;
             }
         }
+      } else {
+        const origMat = Array.isArray(mesh.userData.originalMaterial) ? mesh.userData.originalMaterial[0] : mesh.userData.originalMaterial;
+        if (!origMat) return;
+        const material = mesh.material as THREE.MeshStandardMaterial;
+        
+        let changed = false;
+        
+        if (!material.color.equals(origMat.color)) {
+            material.color.copy(origMat.color);
+            changed = true;
+        }
+        if (material.roughness !== origMat.roughness) {
+            material.roughness = origMat.roughness;
+            changed = true;
+        }
+        if (material.metalness !== origMat.metalness) {
+            material.metalness = origMat.metalness;
+            changed = true;
+        }
+        
+        if (material.map !== origMat.map) {
+            if (material.map && material.map !== origMat.map) material.map.dispose();
+            material.map = origMat.map;
+            mesh.userData.currentTextureUrl = null;
+            changed = true;
+        }
+        if (material.normalMap !== origMat.normalMap) {
+            if (material.normalMap && material.normalMap !== origMat.normalMap) material.normalMap.dispose();
+            material.normalMap = origMat.normalMap;
+            mesh.userData.currentNormalUrl = null;
+            changed = true;
+        }
+        if (material.roughnessMap !== origMat.roughnessMap) {
+            material.roughnessMap = origMat.roughnessMap;
+            changed = true;
+        }
+        if (material.metalnessMap !== origMat.metalnessMap) {
+            material.metalnessMap = origMat.metalnessMap;
+            changed = true;
+        }
+        if (material.aoMap !== origMat.aoMap) {
+            material.aoMap = origMat.aoMap;
+            changed = true;
+        }
+        if (material.lightMap !== origMat.lightMap) {
+            material.lightMap = origMat.lightMap;
+            changed = true;
+        }
+        if (material.emissiveMap !== origMat.emissiveMap) {
+            material.emissiveMap = origMat.emissiveMap;
+            changed = true;
+        }
+        if (material.vertexColors !== origMat.vertexColors) {
+            material.vertexColors = origMat.vertexColors;
+            changed = true;
+        }
+        
+        if (material.userData.shaderUniforms && material.userData.shaderUniforms.uSmartColorEnabled) {
+            if (material.userData.shaderUniforms.uSmartColorEnabled.value !== 0.0) {
+                material.userData.shaderUniforms.uSmartColorEnabled.value = 0.0;
+            }
+        }
+        
+        if (changed) {
+            material.needsUpdate = true;
+        }
       }
     });
   }, [cachedMeshes, textureMap]);
@@ -473,7 +834,7 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
                     document.body.style.cursor = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g stroke='rgba(255,255,255,0.8)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><path d='m2 22 1-1h3l9-9'/><path d='M3 21v-3l9-9'/><path d='m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z'/></g><g stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polygon points='3,21 3,18 12,9 15,12 6,21' fill='white'/><path d='m2 22 1-1' stroke-width='2'/><path d='m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z' fill='black'/></g></svg>") 0 24, crosshair`;
                     return;
                 }
-                const interactiveFlag = modelId === 'traveler' ? true : isInteractive(e.object.name);
+                const interactiveFlag = isInteractive(e.object.name, modelId);
                 if(interactiveFlag) document.body.style.cursor = 'pointer'; 
             }}
             onPointerOut={() => { document.body.style.cursor = 'auto'; }}
@@ -547,22 +908,29 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
                     return;
                 }
 
-                const interactiveFlag = modelId === 'traveler' ? true : isInteractive(mesh.name);
+                const interactiveFlag = isInteractive(mesh.name, modelId);
                 
                 if (!interactiveFlag) { onPartSelect(null); return; }
-                mesh.userData.glowEnergy = 1.0;
                 
                 // 使用標準化的部位名稱以更新 UI
                 const normalizedPartName = getNormalizedPartName(mesh.name);
+
+                // 使所有同名部位一起發光
+                cachedMeshes.forEach(m => {
+                    if (getNormalizedPartName(m.name) === normalizedPartName) {
+                        m.userData.glowEnergy = 1.0;
+                    }
+                });
+
                 onPartSelect({ name: normalizedPartName, materialName: mat.name, id: mesh.uuid });
             }}
           />;
 };
 
-const InnerScene = React.memo(({ url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked }: ModelProps) => {
+const InnerScene = React.memo(({ visible = true, url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked }: ModelProps & { visible?: boolean }) => {
     const [modelBottom, setModelBottom] = useState(-0.1);
     return (
-        <Group position={modelPosition}>
+        <group position={modelPosition} visible={visible}>
             <Center onCentered={({ height }) => setModelBottom(-height / 2)}>
                 <Model 
                     url={url} 
@@ -579,12 +947,13 @@ const InnerScene = React.memo(({ url, modelId, modelScale, modelRotation, modelP
                 />
             </Center>
             <ContactShadows position={[0, modelBottom - 0.001, 0]} opacity={0.6} scale={1.5} blur={0.8} far={1.0} resolution={256} color="#000000" />
-        </Group>
+        </group>
     );
 });
 
 interface ModelViewerProps {
   url: string;
+  wireframeUrl?: string | null;
   modelId?: string;
   modelScale: number;
   modelRotation: [number, number, number];
@@ -622,10 +991,19 @@ const CameraResetter = ({ modelId, controlsRef }: { modelId?: string, controlsRe
 };
 
 const ModelViewer = React.forwardRef<any, ModelViewerProps>(({ 
-    url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, isPickingColor, onColorPicked
+    url, wireframeUrl, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, isPickingColor, onColorPicked
 }, ref) => {
   const controlsRef = useRef<any>(null);
   const screenshotHandlerRef = useRef<any>(null);
+  const [transitionState, setTransitionState] = useState<'loading' | 'complete'>('loading');
+
+  useEffect(() => {
+      if (modelId && animatedModels.has(modelId)) {
+          setTransitionState('complete');
+      } else {
+          setTransitionState('loading');
+      }
+  }, [url, modelId]);
 
   React.useImperativeHandle(ref, () => ({
       captureComposition: () => screenshotHandlerRef.current?.captureComposition() || Promise.resolve('')
@@ -663,10 +1041,21 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         />
         <CameraResetter modelId={modelId} controlsRef={controlsRef} />
         <ScreenshotHandler ref={screenshotHandlerRef} />
-        <Suspense fallback={<Html center><div className="flex flex-col items-center gap-4"><div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Initializing Scene...</p></div></Html>}>
+        {wireframeUrl && transitionState === 'loading' && (
+            <LoadingWireframeOverlay 
+                url={wireframeUrl} 
+                scale={modelScale} 
+                rotation={modelRotation} 
+                position={modelPosition} 
+                modelId={modelId || ''}
+                onComplete={() => setTransitionState('complete')}
+            />
+        )}
+        <Suspense fallback={null}>
             {/* Fixed key error by ensuring ErrorBoundary is recognized as a standard React component */}
             <ErrorBoundary key={url}>
                 <InnerScene 
+                    visible={!wireframeUrl || transitionState === 'complete'}
                     url={url}
                     modelId={modelId}
                     modelScale={modelScale}
@@ -694,7 +1083,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             </ErrorBoundary>
         </Suspense>
       </Canvas>
-      <Loader />
+      <CustomLoader hasWireframe={!!wireframeUrl} />
       {selectedPart && (
         <div className={`
             absolute left-1/2 -translate-x-1/2 z-10 
@@ -705,7 +1094,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
           <div className="flex items-center gap-3 px-6 py-2.5 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_rgba(0,0,0,0.05)] whitespace-nowrap">
             <span className="w-2.5 h-2.5 shrink-0 rounded-full bg-indigo-500 animate-pulse"></span>
             <span className="text-[10px] lg:text-[11px] font-black tracking-[0.2em] uppercase text-gray-900 leading-none">
-              EDITING <span className="text-indigo-600 ml-1">{selectedPart.name}</span>
+              EDITING <span className="text-indigo-600 ml-1">{selectedPart.name.toUpperCase() === 'OBJECT019' ? 'INSOLE' : selectedPart.name.toUpperCase() === 'OBJECT011' ? 'AGLET' : selectedPart.name}</span>
             </span>
           </div>
 

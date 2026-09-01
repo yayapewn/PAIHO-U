@@ -1,15 +1,17 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { X, RotateCw, Share2, Download, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor, Pipette } from 'lucide-react';
+import { X, RotateCw, Share2, Download, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor, Pipette, Code, Save, Copy, Trash2 } from 'lucide-react';
 import ModelViewer from './components/ModelViewer';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
 
 const UNIFORM_LINK = "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786";
+const ENABLE_DEV_TOOLS = true;
 
 const MODELS = [
   { 
     id: 'lace', 
     name: 'Lace-shoe', 
     url: 'https://huggingface.co/yayapewn/huggingface/resolve/main/lace-shoe.glb',
+    wireframeUrl: 'https://huggingface.co/yayapewn/huggingface/resolve/main/lace-shoe-wire_compressed.glb',
     scale: 2,
     rotation: [0, Math.PI, 0] as [number, number, number],
     position: [0, 0, 0] as [number, number, number],
@@ -19,6 +21,7 @@ const MODELS = [
     id: 'traveler', 
     name: 'Traveler-shoe', 
     url: 'https://huggingface.co/yayapewn/huggingface/resolve/main/Traveler-shoe.glb',
+    wireframeUrl: 'https://huggingface.co/yayapewn/huggingface/resolve/main/Traveler-shoe-wire_compressed.glb',
     scale: 1.53, 
     rotation: [-0.3, Math.PI * 2.5, 0] as [number, number, number], 
     position: [0, 0.03, 0] as [number, number, number], 
@@ -28,6 +31,7 @@ const MODELS = [
     id: 'dna', 
     name: 'D.N.A-shoe', 
     url: null,
+    wireframeUrl: null,
     scale: 2,
     rotation: [0, Math.PI, 0] as [number, number, number],
     position: [0, 0, 0] as [number, number, number],
@@ -90,21 +94,143 @@ const rgbToHsv = (r: number, g: number, b: number) => {
   return { h: h * 360, s: s * 100, v: v * 100 };
 };
 
+
+// --- Additional Color Spaces ---
+const rgbToXyz = (r: number, g: number, b: number) => {
+  let [R, G, B] = [r / 255, g / 255, b / 255].map(v => v > 0.04045 ? Math.pow((v + 0.055) / 1.055, 2.4) : v / 12.92);
+  R *= 100; G *= 100; B *= 100;
+  return [R * 0.4124 + G * 0.3576 + B * 0.1805, R * 0.2126 + G * 0.7152 + B * 0.0722, R * 0.0193 + G * 0.1192 + B * 0.9505];
+};
+
+const xyzToLab = (x: number, y: number, z: number) => {
+  let [X, Y, Z] = [x / 95.047, y / 100.0, z / 108.883].map(v => v > 0.008856 ? Math.pow(v, 1/3) : (7.787 * v) + (16 / 116));
+  return [(116 * Y) - 16, 500 * (X - Y), 200 * (Y - Z)];
+};
+
+const rgbToLab = (r: number, g: number, b: number) => {
+  const [x, y, z] = rgbToXyz(r, g, b);
+  const [L, A, B] = xyzToLab(x, y, z);
+  return { l: Math.round(L), a: Math.round(A), b: Math.round(B) };
+};
+
+const labToXyz = (l: number, a: number, b: number) => {
+  let y = (l + 16) / 116;
+  let x = a / 500 + y;
+  let z = y - b / 200;
+  [x, y, z] = [x, y, z].map(v => Math.pow(v, 3) > 0.008856 ? Math.pow(v, 3) : (v - 16 / 116) / 7.787);
+  return [x * 95.047, y * 100.0, z * 108.883];
+};
+
+const xyzToRgb = (x: number, y: number, z: number) => {
+  let [X, Y, Z] = [x / 100, y / 100, z / 100];
+  let r = X * 3.2404542 + Y * -1.5371385 + Z * -0.4985314;
+  let g = X * -0.9692660 + Y * 1.8760108 + Z * 0.0415560;
+  let b = X * 0.0556434 + Y * -0.2040259 + Z * 1.0572252;
+  [r, g, b] = [r, g, b].map(v => v > 0.0031308 ? 1.055 * Math.pow(v, 1 / 2.4) - 0.055 : 12.92 * v);
+  return { 
+    r: Math.max(0, Math.min(255, Math.round(r * 255))), 
+    g: Math.max(0, Math.min(255, Math.round(g * 255))), 
+    b: Math.max(0, Math.min(255, Math.round(b * 255))) 
+  };
+};
+
+const labToRgb = (l: number, a: number, b: number) => {
+  const [x, y, z] = labToXyz(l, a, b);
+  return xyzToRgb(x, y, z);
+};
+
+const rgbToHsl = (r: number, g: number, b: number) => {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+};
+
+const hslToRgb = (h: number, s: number, l: number) => {
+  let r, g, b;
+  h /= 360; s /= 100; l /= 100;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+};
 /**
+
  * 專業級直覺檢色器
  */
 const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void, onLiveChange?: (hex: string) => void, isPickingColor: boolean, onTogglePick: () => void }> = ({ color, onChange, onLiveChange, isPickingColor, onTogglePick }) => {
   const [hsv, setHsv] = useState(() => rgbToHsv(hexToRgb(color).r, hexToRgb(color).g, hexToRgb(color).b));
+  
+  type ColorMode = 'HEX' | 'RGB' | 'HSL' | 'LAB';
+  const [colorMode, setColorMode] = useState<ColorMode>('HEX');
   const [inputText, setInputText] = useState(color);
+  const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsModeDropdownOpen(false);
+      }
+    };
+    if (isModeDropdownOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isModeDropdownOpen]);
+
+  const formatColorString = (hexString: string, mode: ColorMode) => {
+    const rgb = hexToRgb(hexString);
+    if (mode === 'HEX') return hexString.toUpperCase();
+    if (mode === 'RGB') return `${rgb.r}, ${rgb.g}, ${rgb.b}`;
+    if (mode === 'HSL') {
+      const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+      return `${hsl.h}, ${hsl.s}%, ${hsl.l}%`;
+    }
+    if (mode === 'LAB') {
+      const lab = rgbToLab(rgb.r, rgb.g, rgb.b);
+      return `${lab.l}, ${lab.a}, ${lab.b}`;
+    }
+    return hexString;
+  };
+
   
   const colorRef = useRef(color);
   const hsvRef = useRef(hsv);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
+    setInputText(formatColorString(colorRef.current, colorMode));
+  }, [colorMode]);
+
+  useEffect(() => {
     if (colorRef.current !== color) {
        colorRef.current = color;
-       setInputText(color);
+       setInputText(formatColorString(color, colorMode));
        const newRgb = hexToRgb(color);
        const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
        setHsv(newHsv);
@@ -120,7 +246,7 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void,
     const newRgb = hsvToRgb(nextHsv.h, nextHsv.s, nextHsv.v);
     const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
     
-    setInputText(newHex);
+    setInputText(formatColorString(newHex, colorMode));
     
     if (newHex !== colorRef.current) {
         colorRef.current = newHex;
@@ -216,17 +342,83 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void,
 
       <div className="grid grid-cols-[1fr_auto_0.8fr] gap-3 items-end">
           <div className="space-y-1.5">
-              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block ml-1">HEX CODE</span>
+              <div className="flex items-center justify-between ml-1 mb-1.5">
+                  <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block">COLOR CODE</span>
+                  <div className="relative flex items-center" ref={dropdownRef}>
+                      <button 
+                          onClick={() => setIsModeDropdownOpen(!isModeDropdownOpen)}
+                          className="flex items-center justify-center gap-1 px-2 py-1 text-[9px] font-bold text-gray-500 bg-transparent outline-none cursor-pointer hover:text-indigo-600 hover:bg-gray-100 rounded-md transition-all"
+                      >
+                          <span className="leading-none pt-[1px]">{colorMode}</span>
+                          <ChevronDown size={10} strokeWidth={3} className={`transition-transform duration-300 ${isModeDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {isModeDropdownOpen && (
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 bg-white border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.08)] rounded-xl overflow-hidden z-[100] min-w-[72px] animate-in fade-in zoom-in-95 duration-200">
+                              {(['HEX', 'RGB', 'HSL', 'LAB'] as ColorMode[]).map((mode) => (
+                                  <button
+                                      key={mode}
+                                      onClick={() => {
+                                          setColorMode(mode);
+                                          setIsModeDropdownOpen(false);
+                                      }}
+                                      className={`w-full text-center px-3 py-2 text-[9px] font-bold tracking-widest transition-colors ${
+                                          colorMode === mode 
+                                              ? 'bg-indigo-50 text-indigo-600' 
+                                              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                                      }`}
+                                  >
+                                      {mode}
+                                  </button>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
               <div className="bg-gray-50 rounded-xl px-4 py-3 border border-transparent focus-within:border-indigo-100 transition-all flex items-center h-[52px]">
                   <input 
                     type="text" 
                     value={inputText}
                     onChange={(e) => {
-                        const val = e.target.value.toUpperCase();
+                        const val = e.target.value;
                         setInputText(val);
-                        if (/^#[0-9A-F]{6}$/i.test(val)) {
-                            if (onLiveChange) onLiveChange(val);
-                            onChange(val);
+                        
+                        let hexValue = '';
+                        try {
+                          if (colorMode === 'HEX') {
+                            if (/^#[0-9A-Fa-f]{6}$/i.test(val)) hexValue = val.toUpperCase();
+                          } else if (colorMode === 'RGB') {
+                            const match = val.match(/^\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*$/);
+                            if (match) {
+                               const r = Math.min(255, Math.max(0, parseInt(match[1])));
+                               const g = Math.min(255, Math.max(0, parseInt(match[2])));
+                               const b = Math.min(255, Math.max(0, parseInt(match[3])));
+                               hexValue = rgbToHex(r, g, b);
+                            }
+                          } else if (colorMode === 'HSL') {
+                            const match = val.match(/^\s*(\d{1,3})\s*,\s*(\d{1,3})%?\s*,\s*(\d{1,3})%?\s*$/);
+                            if (match) {
+                               const h = Math.min(360, Math.max(0, parseInt(match[1])));
+                               const s = Math.min(100, Math.max(0, parseInt(match[2])));
+                               const l = Math.min(100, Math.max(0, parseInt(match[3])));
+                               const rgb = hslToRgb(h, s, l);
+                               hexValue = rgbToHex(rgb.r, rgb.g, rgb.b);
+                            }
+                          } else if (colorMode === 'LAB') {
+                            const match = val.match(/^\s*(\d{1,3})\s*,\s*(-?\d{1,3})\s*,\s*(-?\d{1,3})\s*$/);
+                            if (match) {
+                               const l = Math.min(100, Math.max(0, parseInt(match[1])));
+                               const a = Math.min(127, Math.max(-128, parseInt(match[2])));
+                               const b = Math.min(127, Math.max(-128, parseInt(match[3])));
+                               const rgb = labToRgb(l, a, b);
+                               hexValue = rgbToHex(rgb.r, rgb.g, rgb.b);
+                            }
+                          }
+                        } catch(err) {}
+
+                        if (hexValue) {
+                            if (onLiveChange) onLiveChange(hexValue);
+                            onChange(hexValue);
                         }
                     }}
                     className="bg-transparent border-none outline-none w-full text-[13px] font-black uppercase tracking-tight text-gray-700" 
@@ -246,7 +438,23 @@ const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void,
   );
 };
 
+const DEFAULT_PART_CONFIGS: Record<string, TextureConfig> = {
+  'traveler_Vamp': { url: GENERAL_TEXTURES[0].url, normalUrl: GENERAL_TEXTURES[0].normalUrl, scale: 2.14, offsetX: 0, offsetY: 0.1, rotation: 0, roughness: 1, metalness: 0, opacity: 1, color: '#ffffff', originalRoughness: 1 },
+  'traveler_Heel Counter': { url: GENERAL_TEXTURES[1].url, normalUrl: GENERAL_TEXTURES[1].normalUrl, scale: 1.5, offsetX: 0.2, offsetY: -0.1, rotation: 0, roughness: 1, metalness: 0, opacity: 1, color: '#ffffff', originalRoughness: 1 }
+};
+
 const App: React.FC = () => {
+  const [devConfigs, setDevConfigs] = useState<Record<string, any>>(() => {
+    try {
+      const saved = localStorage.getItem('paiho_dev_configs');
+      return saved ? JSON.parse(saved) : {};
+    } catch(e) { return {}; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('paiho_dev_configs', JSON.stringify(devConfigs));
+  }, [devConfigs]);
+
   const [activeModelIndex, setActiveModelIndex] = useState(0);
   const [libraries, setLibraries] = useState({ materials: GENERAL_TEXTURES });
   const [selectedPart, setSelectedPart] = useState<SelectedPart | null>(null);
@@ -255,7 +463,7 @@ const App: React.FC = () => {
   const [envRotation, setEnvRotation] = useState<number>(MODELS[0].initialEnvRotation); 
   const [autoRotate, setAutoRotate] = useState<boolean>(false);
   const [isPickingColor, setIsPickingColor] = useState<boolean>(false);
-  const [partTextures, setPartTextures] = useState<Record<string, TextureConfig | null>>({});
+  const [partTextures, setPartTextures] = useState<Record<string, TextureConfig | null>>(DEFAULT_PART_CONFIGS);
 
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -304,35 +512,60 @@ const App: React.FC = () => {
   const isLibrarySupported = (partName: string) => {
     if (!partName) return false;
     const name = partName.toUpperCase();
-    return !['TONGUE', 'MIDSOLE', 'OUTSOLE'].includes(name);
+    
+    // 依據不同鞋款獨立設定禁用材質庫的部位
+    let disabledParts: string[] = [];
+    if (currentModel.id === 'traveler') {
+      // TRAVELER 鞋款的 TONGUE 開放全客製化 (不在此名單)
+      disabledParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY', 'OUTSOLE'];
+    } else if (currentModel.id === 'lace') {
+      // LACE 鞋款的 TONGUE 為純色覆蓋模式 (在此名單)
+      disabledParts = ['TONGUE', 'OBJECT011', 'MIDSOLE', 'LINE048', 'OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY', 'OUTSOLE'];
+    } else {
+      disabledParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY', 'OUTSOLE'];
+    }
+    
+    return !disabledParts.includes(name);
   };
 
   const applyTexture = (texture: TextureItem) => {
     if (!selectedPart || !isLibrarySupported(selectedPart.name)) return;
     setActiveTexture(texture);
+    const partKey = `${currentModel.id}_${selectedPart.name}`;
+    
+    // 檢查是否有 Dev Tool 暫存的設定
+    const savedConfig = devConfigs[partKey] || devConfigs[texture.url];
+    const defaultScale = savedConfig ? savedConfig.scale : 2.5;
+    const defaultOffsetX = savedConfig ? savedConfig.offsetX : 0;
+    const defaultOffsetY = savedConfig ? savedConfig.offsetY : 0;
+
     setPartTextures(prev => {
-      const existing = prev[selectedPart.id];
-      if (existing) return { ...prev, [selectedPart.id]: { ...existing, url: texture.url, normalUrl: texture.normalUrl, color: '#ffffff' } };
-      return { ...prev, [selectedPart.id]: { url: texture.url, normalUrl: texture.normalUrl, scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1, color: '#ffffff' } };
+      const existing = prev[partKey];
+      const inheritedColor = existing?.color || '#ffffff'; // 繼承原本選定的顏色，若無則預設白色
+      
+      if (existing) return { ...prev, [partKey]: { ...existing, url: texture.url, normalUrl: texture.normalUrl, color: inheritedColor, scale: defaultScale, offsetX: defaultOffsetX, offsetY: defaultOffsetY } };
+      return { ...prev, [partKey]: { url: texture.url, normalUrl: texture.normalUrl, scale: defaultScale, offsetX: defaultOffsetX, offsetY: defaultOffsetY, rotation: 0, roughness: 1, metalness: 0, opacity: 1, color: inheritedColor } };
     });
   };
 
   const removeTexture = () => {
     if (!selectedPart) return;
     setActiveTexture(null);
+    const partKey = `${currentModel.id}_${selectedPart.name}`;
     setPartTextures(prev => {
-      const config = prev[selectedPart.id];
+      const config = prev[partKey];
       if (!config) return prev;
-      return { ...prev, [selectedPart.id]: { ...config, url: '', normalUrl: '' } };
+      return { ...prev, [partKey]: { ...config, url: '', normalUrl: '' } };
     });
   };
 
   const removeColor = () => {
     if (!selectedPart) return;
+    const partKey = `${currentModel.id}_${selectedPart.name}`;
     setPartTextures(prev => {
-      const config = prev[selectedPart.id];
+      const config = prev[partKey];
       if (!config) return prev;
-      return { ...prev, [selectedPart.id]: { ...config, color: '#ffffff' } };
+      return { ...prev, [partKey]: { ...config, color: '#ffffff' } };
     });
   };
 
@@ -345,9 +578,10 @@ const App: React.FC = () => {
 
   const updateTextureConfig = (key: keyof TextureConfig, value: any) => {
       if (!selectedPart) return;
+      const partKey = `${currentModel.id}_${selectedPart.name}`;
       setPartTextures(prev => {
-          const config = prev[selectedPart.id] || { url: '', normalUrl: '', scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 };
-          return { ...prev, [selectedPart.id]: { ...config, [key]: value } };
+          const config = prev[partKey] || { url: '', normalUrl: '', scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 };
+          return { ...prev, [partKey]: { ...config, [key]: value } };
       });
   };
 
@@ -362,7 +596,7 @@ const App: React.FC = () => {
     }, 500);
   };
 
-  const currentTextureConfig = selectedPart ? partTextures[selectedPart.id] : null;
+  const currentTextureConfig = selectedPart ? partTextures[`${currentModel.id}_${selectedPart.name}`] : null;
   const currentColorHex = (currentTextureConfig?.color || '#ffffff').toUpperCase();
 
   const mappedTextureMap = useMemo(() => {
@@ -378,7 +612,8 @@ const App: React.FC = () => {
   useEffect(() => {
     if (selectedPart) {
       setIsPanelVisible(true);
-      const currentUrl = partTextures[selectedPart.id]?.url;
+      const partKey = `${currentModel.id}_${selectedPart.name}`;
+      const currentUrl = partTextures[partKey]?.url;
       if (currentUrl) {
           const match = libraries.materials.find(t => t.url === currentUrl);
           setActiveTexture(match || null);
@@ -389,16 +624,16 @@ const App: React.FC = () => {
   }, [selectedPart, partTextures, libraries]);
 
   const asideClasses = useMemo(() => {
-    const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible shadow-[0_-15px_60px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]";
-    let mobileState = "bottom-0 left-0 w-full h-[32dvh] rounded-t-[42px] md:rounded-none";
+    const base = "fixed z-[60] bg-white/70 backdrop-blur-2xl transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible pb-[env(safe-area-inset-bottom)]";
+    let mobileState = "bottom-0 left-0 w-full h-[32dvh] rounded-t-[20px] md:rounded-none border-t border-gray-200/50";
     
     if (selectedPart) mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
     else mobileState += " translate-y-full";
     
     // 平板範圍 (768px ~ 1279px): 360px
     // 電腦範圍 (1280px 以上): 400px
-    let desktopState = "md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-full md:w-[320px] xl:w-[400px] md:border-l md:border-gray-50 md:translate-y-0";
-    if (selectedPart) desktopState += isPanelVisible ? " md:translate-x-0" : " md:translate-x-full";
+    let desktopState = "md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-full md:w-[320px] xl:w-[400px] md:border-t-0 md:border-l md:border-gray-200/50 md:translate-y-0";
+    if (selectedPart) desktopState += isPanelVisible ? " md:translate-x-0 md:shadow-[-20px_0_40px_rgba(0,0,0,0.03)]" : " md:translate-x-full";
     else desktopState += " md:translate-x-full";
     
     return `${base} ${mobileState} ${desktopState}`;
@@ -424,24 +659,22 @@ const App: React.FC = () => {
       )}
 
       <div className="relative flex-1">
-        <nav className="absolute top-8 left-1/2 -translate-x-1/2 z-[50] flex items-center p-1.5 bg-white/60 backdrop-blur-2xl border border-white/50 rounded-full shadow-[0_15px_50px_rgba(0,0,0,0.06)]">
+        <nav className="absolute top-8 left-1/2 -translate-x-1/2 z-[50] flex items-center p-2 bg-transparent backdrop-blur-[2px] border-b border-gray-200/50">
           {MODELS.map((model, idx) => (
             <button
               key={model.id}
               onClick={() => handleModelSwitch(idx)}
-              className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`px-6 py-2 text-[10px] uppercase tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'font-bold text-gray-900' : 'font-medium text-gray-400 hover:text-gray-600'}`}
             >
               {model.name}
-              {activeModelIndex === idx && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-indigo-600 rounded-full animate-pulse"></span>}
             </button>
           ))}
-          <div className="w-[1px] h-4 bg-gray-300/50 mx-1"></div>
           <button
             onClick={(e) => { e.stopPropagation(); setAutoRotate(!autoRotate); }}
-            className={`w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 ${autoRotate ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
+            className={`ml-4 p-2 transition-all duration-300 ${autoRotate ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
             title="Toggle Auto Rotate"
           >
-            <RotateCw size={15} className={autoRotate ? 'animate-spin' : ''} style={{ animationDuration: '3s' }} />
+            <RotateCw size={14} className={autoRotate ? 'animate-spin' : ''} style={{ animationDuration: '3s' }} />
           </button>
         </nav>
 
@@ -449,6 +682,7 @@ const App: React.FC = () => {
            <ModelViewer 
              ref={modelViewerRef} 
              url={currentModel.url!} 
+             wireframeUrl={currentModel.wireframeUrl}
              modelId={currentModel.id}
              modelScale={isMobileView ? currentModel.scale * 0.5 : currentModel.scale} 
              modelRotation={currentModel.rotation}
@@ -467,6 +701,104 @@ const App: React.FC = () => {
              isPickingColor={isPickingColor}
              onColorPicked={handleColorPicked}
            />
+
+           {ENABLE_DEV_TOOLS && selectedPart && activeTexture && (
+               <div className="hidden xl:block absolute left-6 top-32 w-72 bg-white/95 backdrop-blur-md border border-indigo-100 rounded-2xl shadow-2xl p-5 z-50 animate-in fade-in slide-in-from-left-4">
+                   <div className="flex items-center justify-between mb-4">
+                       <h3 className="text-[11px] font-black tracking-widest text-indigo-900 uppercase flex items-center gap-1.5"><Code size={14}/> Dev UV Tool</h3>
+                       <span className="text-[9px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">DEV MODE</span>
+                   </div>
+                   
+                   <div className="space-y-4 mb-5">
+                       {activeTexture && (
+                           <>
+                               <div>
+                                   <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
+                                       <span>SCALE (縮放)</span>
+                                       <span className="text-indigo-600">{partTextures[`${currentModel.id}_${selectedPart.name}`]?.scale.toFixed(2) || '2.50'}</span>
+                                   </div>
+                                   <input type="range" min="0.1" max="10" step="0.05" value={partTextures[`${currentModel.id}_${selectedPart.name}`]?.scale || 2.5} onChange={(e) => updateTextureConfig('scale', parseFloat(e.target.value))} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
+                               </div>
+                               <div>
+                                   <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
+                                       <span>OFFSET X (水平偏移)</span>
+                                       <span className="text-indigo-600">{partTextures[`${currentModel.id}_${selectedPart.name}`]?.offsetX.toFixed(2) || '0.00'}</span>
+                                   </div>
+                                   <input type="range" min="-2" max="2" step="0.01" value={partTextures[`${currentModel.id}_${selectedPart.name}`]?.offsetX || 0} onChange={(e) => updateTextureConfig('offsetX', parseFloat(e.target.value))} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
+                               </div>
+                               <div>
+                                   <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
+                                       <span>OFFSET Y (垂直偏移)</span>
+                                       <span className="text-indigo-600">{partTextures[`${currentModel.id}_${selectedPart.name}`]?.offsetY.toFixed(2) || '0.00'}</span>
+                                   </div>
+                                   <input type="range" min="-2" max="2" step="0.01" value={partTextures[`${currentModel.id}_${selectedPart.name}`]?.offsetY || 0} onChange={(e) => updateTextureConfig('offsetY', parseFloat(e.target.value))} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
+                               </div>
+                           </>
+                       )}
+                   </div>
+
+                   <div className="space-y-2">
+                       <button 
+                           onClick={(e) => {
+                               e.stopPropagation();
+                               const partKey = `${currentModel.id}_${selectedPart.name}`;
+                               const conf = partTextures[partKey];
+                               if(conf) {
+                                   setDevConfigs(prev => ({
+                                       ...prev, 
+                                       [partKey]: {
+                                           partKey: partKey,
+                                           colorUrl: activeTexture?.url || '',
+                                           normalUrl: activeTexture?.normalUrl || '',
+                                           scale: conf.scale,
+                                           offsetX: conf.offsetX,
+                                           offsetY: conf.offsetY,
+                                           originalRoughness: conf.originalRoughness
+                                       }
+                                   }));
+                                   setToast("Saved to LocalStorage!");
+                                   setTimeout(() => setToast(null), 2000);
+                               }
+                           }}
+                           className="w-full bg-indigo-50 text-indigo-600 font-bold text-[11px] py-2.5 rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1.5 transition-colors pointer-events-auto"
+                       >
+                           <Save size={14} /> 暫存此貼圖設定
+                       </button>
+                       
+                       <button 
+                           onClick={(e) => {
+                               e.stopPropagation();
+                               const configArray = Object.values(devConfigs);
+                               if(configArray.length === 0) {
+                                   setToast("沒有暫存任何資料");
+                                   setTimeout(() => setToast(null), 2000);
+                                   return;
+                               }
+                               const jsonStr = JSON.stringify(configArray, null, 2);
+                               navigator.clipboard.writeText(jsonStr);
+                               setToast("已複製大禮包 JSON !");
+                               setTimeout(() => setToast(null), 2000);
+                           }}
+                           className="w-full bg-slate-900 text-white font-bold text-[11px] py-2.5 rounded-lg hover:bg-slate-800 flex items-center justify-center gap-1.5 transition-colors shadow-md pointer-events-auto"
+                       >
+                           <Copy size={14} /> 匯出所有暫存 (JSON)
+                       </button>
+
+                       <button 
+                           onClick={(e) => {
+                               e.stopPropagation();
+                               setDevConfigs({});
+                               localStorage.removeItem('paiho_dev_configs');
+                               setToast("已清空暫存");
+                               setTimeout(() => setToast(null), 2000);
+                           }}
+                           className="w-full bg-red-50 text-red-500 font-bold text-[11px] py-2 rounded-lg hover:bg-red-100 flex items-center justify-center gap-1.5 transition-colors mt-2 pointer-events-auto"
+                       >
+                           <Trash2 size={13} /> 清空暫存
+                       </button>
+                   </div>
+               </div>
+           )}
 
            {(!selectedPart) && (
              <div className="absolute inset-0 flex items-end justify-center pb-[max(6rem,18dvh)] pointer-events-none animate-in fade-in zoom-in-95 duration-700">
@@ -514,9 +846,6 @@ const App: React.FC = () => {
                                           <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Library</h3>
                                           <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                       </div>
-                                      <button onClick={removeTexture} className="p-1 text-gray-400 hover:text-red-500 transition-colors" title="Remove Texture">
-                                          <X size={18} strokeWidth={3} />
-                                      </button>
                                   </div>
                                   <div className="grid grid-cols-4 gap-2 md:gap-3 px-1">
                                       {libraries.materials.map(t => (
@@ -535,9 +864,6 @@ const App: React.FC = () => {
                                         <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-900 leading-none">Spectrum</h3>
                                         <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                     </div>
-                                    <button onClick={removeColor} className="p-1 text-gray-400 hover:text-red-500 transition-colors" title="Remove Color">
-                                        <X size={18} strokeWidth={3} />
-                                    </button>
                                 </div>
                                 <div className="px-1">
                                     <ProColorPicker 
@@ -566,14 +892,14 @@ const App: React.FC = () => {
                                             <span>Brightness</span>
                                             <span className="text-indigo-600">{envIntensity.toFixed(1)}</span>
                                         </div>
-                                        <input type="range" min="0" max="5" step="0.1" value={envIntensity} onChange={(e) => { e.stopPropagation(); setEnvIntensity(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer" />
+                                        <input type="range" min="0" max="5" step="0.1" value={envIntensity} onChange={(e) => { e.stopPropagation(); setEnvIntensity(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
                                     </div>
                                     <div className="space-y-4">
                                         <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
                                             <span>Sun Rotation</span>
                                             <span className="text-indigo-600">{Math.round(envRotation)}°</span>
                                         </div>
-                                        <input type="range" min="0" max="360" step="1" value={envRotation} onChange={(e) => { e.stopPropagation(); setEnvRotation(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer" />
+                                        <input type="range" min="0" max="360" step="1" value={envRotation} onChange={(e) => { e.stopPropagation(); setEnvRotation(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
                                     </div>
                                 </div>
                             </section>
