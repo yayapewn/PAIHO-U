@@ -897,7 +897,7 @@ const App: React.FC = () => {
                             <section>
                                 <div className="flex justify-between items-center mb-6 px-1">
                                     <div className="flex flex-col gap-1.5">
-                                        <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-900 leading-none">Spectrum</h3>
+                                        <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-900 leading-none">COLOR PALETTE</h3>
                                         <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                     </div>
                                 </div>
@@ -906,8 +906,8 @@ const App: React.FC = () => {
                                       color={currentColorHex} 
                                       onChange={(hex) => updateTextureConfig('color', hex)}
                                       onLiveChange={(hex) => {
-                                          window.dispatchEvent(new CustomEvent('preview-part-color', { 
-                                              detail: { partId: selectedPart.id, color: hex } 
+                                          window.dispatchEvent(new CustomEvent('preview-part-color', {
+                                              detail: { partId: selectedPart.id, color: hex }
                                           }));
                                       }}
                                       isPickingColor={isPickingColor}
@@ -925,14 +925,14 @@ const App: React.FC = () => {
                                 <div className="space-y-10 px-1">
                                     <div className="space-y-4">
                                         <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                            <span>Brightness</span>
+                                            <span>INTENSITY</span>
                                             <span className="text-indigo-600">{envIntensity.toFixed(1)}</span>
                                         </div>
                                         <input type="range" min="0" max="5" step="0.1" value={envIntensity} onChange={(e) => { e.stopPropagation(); setEnvIntensity(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
                                     </div>
                                     <div className="space-y-4">
                                         <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                            <span>Sun Rotation</span>
+                                            <span>LIGHT ROTATION</span>
                                             <span className="text-indigo-600">{Math.round(envRotation)}°</span>
                                         </div>
                                         <input type="range" min="0" max="360" step="1" value={envRotation} onChange={(e) => { e.stopPropagation(); setEnvRotation(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
