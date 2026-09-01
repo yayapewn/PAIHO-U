@@ -659,12 +659,12 @@ const App: React.FC = () => {
       )}
 
       <div className="relative flex-1">
-        <nav className="absolute top-8 left-1/2 -translate-x-1/2 z-[50] flex items-center p-2 bg-transparent backdrop-blur-[2px] border-b border-gray-200/50">
+        <nav className="absolute top-0 md:top-8 left-0 md:left-1/2 md:-translate-x-1/2 z-[50] flex w-full md:w-auto items-center justify-between md:justify-center p-2 pt-[max(env(safe-area-inset-top),0.5rem)] md:pt-2 bg-white/80 md:bg-transparent backdrop-blur-md md:backdrop-blur-[2px] border-b border-gray-200/50">
           {MODELS.map((model, idx) => (
             <button
               key={model.id}
               onClick={() => handleModelSwitch(idx)}
-              className={`px-6 py-2 text-[10px] uppercase tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'font-bold text-gray-900' : 'font-medium text-gray-400 hover:text-gray-600'}`}
+              className={`px-3 md:px-6 py-3 md:py-2 flex-1 md:flex-none text-[9px] md:text-[10px] uppercase tracking-[0.1em] md:tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'font-bold text-gray-900' : 'font-medium text-gray-400 hover:text-gray-600'}`}
             >
               {model.name}
               {activeModelIndex === idx && (
@@ -674,7 +674,7 @@ const App: React.FC = () => {
           ))}
           <button
             onClick={(e) => { e.stopPropagation(); setAutoRotate(!autoRotate); }}
-            className={`ml-4 p-2 transition-all duration-300 ${autoRotate ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`px-3 md:ml-4 p-2 transition-all duration-300 ${autoRotate ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
             title="Toggle Auto Rotate"
           >
             <RotateCw size={14} className={autoRotate ? 'animate-spin' : ''} style={{ animationDuration: '3s' }} />

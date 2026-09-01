@@ -212,22 +212,25 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                      camera.updateProjectionMatrix();
                 };
 
+                const isMobile = window.innerWidth < 768;
+                const baseFov = isMobile ? 22 : 30;
+                const detailFov = isMobile ? 20 : 28;
                 const lookAtCenter = new THREE.Vector3(0, 0, 0);
                 
                 // 1. 左上：正側視圖 (Side View)
-                renderAndDraw(0, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.75, 0, 0), lookAtCenter);
+                renderAndDraw(0, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.75, 0, 0), lookAtCenter, undefined, baseFov);
                 
                 // 2. 左下：上視圖 (Top View)
-                renderAndDraw(0, halfHeight + gutter, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0.75, 0), lookAtCenter, new THREE.Vector3(-1, 0, 0));
+                renderAndDraw(0, halfHeight + gutter, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0.75, 0), lookAtCenter, new THREE.Vector3(-1, 0, 0), baseFov);
                 
                 // 3. 右上：45度角視圖 (Perspective View)
-                renderAndDraw(halfWidth + gutter, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.55, 0.4, 0.55), lookAtCenter);
+                renderAndDraw(halfWidth + gutter, 0, halfWidth - gutter, halfHeight - gutter, new THREE.Vector3(0.55, 0.4, 0.55), lookAtCenter, undefined, baseFov);
                 
                 // 4. 右下左：鞋頭視角 (Toe View) (縮小15% -> 0.92 * 0.85 = 0.782)
-                renderAndDraw(halfWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, 0.8), lookAtCenter, undefined, 28, 0.782);
+                renderAndDraw(halfWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, 0.8), lookAtCenter, undefined, detailFov, 0.782);
                 
                 // 5. 右下右：鞋跟視角 (Heel View) (縮小15% -> 0.92 * 0.85 = 0.782)
-                renderAndDraw(halfWidth + quarterWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, -0.8), lookAtCenter, undefined, 28, 0.782);
+                renderAndDraw(halfWidth + quarterWidth + gutter, halfHeight + gutter, quarterWidth - gutter, halfHeight - gutter, new THREE.Vector3(0, 0, -0.8), lookAtCenter, undefined, detailFov, 0.782);
                 camera.position.copy(originalPosition);
                 camera.rotation.copy(originalRotation);
                 (camera as THREE.PerspectiveCamera).aspect = originalAspect;
