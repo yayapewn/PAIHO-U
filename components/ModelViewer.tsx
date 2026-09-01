@@ -213,8 +213,8 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                 };
 
                 const isMobile = window.innerWidth < 768;
-                const baseFov = isMobile ? 22 : 30;
-                const detailFov = isMobile ? 20 : 28;
+                const baseFov = isMobile ? 16 : 30;
+                const detailFov = isMobile ? 14 : 28;
                 const lookAtCenter = new THREE.Vector3(0, 0, 0);
                 
                 // 1. 左上：正側視圖 (Side View)
