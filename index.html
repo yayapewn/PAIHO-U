@@ -19,6 +19,20 @@
       tailwind.config = {
         theme: {
           extend: {
+            keyframes: {
+              'swipe-in-left': {
+                '0%, 100%': { transform: 'translateX(-10px)' },
+                '50%': { transform: 'translateX(10px)' }
+              },
+              'swipe-in-right': {
+                '0%, 100%': { transform: 'translateX(10px)' },
+                '50%': { transform: 'translateX(-10px)' }
+              }
+            },
+            animation: {
+              'swipe-in-left': 'swipe-in-left 2s ease-in-out infinite',
+              'swipe-in-right': 'swipe-in-right 2s ease-in-out infinite'
+            },
             colors: {
               primary: '#6366f1',
               secondary: '#f8f9fa',

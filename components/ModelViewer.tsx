@@ -2,6 +2,7 @@ import React, { Component, useEffect, useState, Suspense, useRef, ErrorInfo, use
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Html, useProgress, Environment, PerspectiveCamera, Center, ContactShadows, AdaptiveDpr, AdaptiveEvents } from '@react-three/drei';
 import * as THREE from 'three';
+import { ArrowUpRight } from 'lucide-react';
 import { SelectedPart, TextureConfig, TextureItem } from '../types';
 
 // 標準化八大部位名稱
@@ -409,7 +410,7 @@ const LoadingWireframeMesh = ({ url, scale, rotation, position, active, onComple
     }, [scene]);
 
     return (
-        <group position={position}>
+        <group position={position} pointerEvents="none">
             <Center>
                 <primitive object={scene} ref={meshRef} scale={scale} rotation={rotation} />
             </Center>
@@ -455,7 +456,7 @@ interface ModelProps {
   onColorPicked?: (hex: string) => void;
 }
 
-const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked }) => {
+const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked, interactive = true }) => {
   const { scene } = useGLTF(url);
   // 使用獨立的 LoadingManager，避免觸發全域的 Suspense Loader（防止閃黑畫面）
   const textureLoader = useMemo(() => {
@@ -598,7 +599,11 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
 
                     if (categoryBParts.includes(upperName)) {
                         let changed = false;
-                        if (material.map !== null) { material.map = null; changed = true; }
+                        if (material.map !== null) { 
+                    if (material.map !== origMat.map) material.map.dispose(); 
+                    material.map = null; 
+                    changed = true; 
+                }
                         if (material.aoMap !== null) { material.aoMap = null; changed = true; }
                         if (material.lightMap !== null) { material.lightMap = null; changed = true; }
                         if (material.emissiveMap !== null) { material.emissiveMap = null; changed = true; }
@@ -864,9 +869,11 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
             scale={[modelScale, modelScale, modelScale]} 
             rotation={modelRotation} 
             onPointerDown={(e: any) => {
+                if (!interactive) return;
                 pointerDownPos.current = { x: e.clientX, y: e.clientY };
             }}
             onPointerOver={(e: any) => { 
+                if (!interactive) return;
                 e.stopPropagation(); 
                 if (isPickingColor) {
                     document.body.style.cursor = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g stroke='rgba(255,255,255,0.8)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><path d='m2 22 1-1h3l9-9'/><path d='M3 21v-3l9-9'/><path d='m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z'/></g><g stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polygon points='3,21 3,18 12,9 15,12 6,21' fill='white'/><path d='m2 22 1-1' stroke-width='2'/><path d='m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z' fill='black'/></g></svg>") 0 24, crosshair`;
@@ -875,8 +882,9 @@ const Model: React.FC<ModelProps> = ({ url, modelId, modelScale, modelRotation, 
                 const interactiveFlag = isInteractive(e.object.name, modelId);
                 if(interactiveFlag) document.body.style.cursor = 'pointer'; 
             }}
-            onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+            onPointerOut={() => { if (!interactive) return; document.body.style.cursor = 'auto'; }}
             onClick={(e: any) => {
+                if (!interactive) return;
                 e.stopPropagation();
                 
                 // 計算滑鼠按下與放開的距離，如果大於 10 像素則視為拖曳旋轉
@@ -971,6 +979,7 @@ const InnerScene = React.memo(({ visible = true, url, modelId, modelScale, model
         <group position={modelPosition} visible={visible}>
             <Center onCentered={({ height }) => setModelBottom(-height / 2)}>
                 <Model 
+                    interactive={visible}
                     url={url} 
                     modelId={modelId}
                     modelScale={modelScale}
@@ -1009,6 +1018,92 @@ interface ModelViewerProps {
   autoRotate: boolean;
   isPickingColor?: boolean;
   onColorPicked?: (hex: string) => void;
+  onModelReady?: () => void;
+  onRotateStart?: () => void;
+  needsDemoRotation?: boolean;
+  onUserRotated?: () => void;
+}
+
+const DemoRotationController = ({ controlsRef, needsDemoRotation, transitionState, onUserRotated, modelId }: any) => {
+    const demoState = useRef({ active: false, time: 0, startAngle: 0, completed: false });
+    const interactionStartAngle = useRef<number | null>(null);
+
+    const listenersAttached = useRef(false);
+    const handleStartRef = useRef<any>(null);
+    const handleChangeRef = useRef<any>(null);
+    const handleEndRef = useRef<any>(null);
+
+    useEffect(() => {
+        demoState.current.completed = false;
+        demoState.current.active = false;
+        listenersAttached.current = false;
+    }, [modelId]);
+
+    useEffect(() => {
+        if (transitionState === 'complete' && needsDemoRotation && !demoState.current.completed) {
+            demoState.current = { active: true, time: 0, startAngle: controlsRef.current?.getAzimuthalAngle() || 0, completed: true };
+        }
+    }, [transitionState, needsDemoRotation, controlsRef, modelId]);
+
+    useEffect(() => {
+        return () => {
+            if (controlsRef.current && listenersAttached.current) {
+                controlsRef.current.removeEventListener('start', handleStartRef.current);
+                controlsRef.current.removeEventListener('change', handleChangeRef.current);
+                controlsRef.current.removeEventListener('end', handleEndRef.current);
+            }
+        };
+    }, [controlsRef]);
+
+    useFrame((state, delta) => {
+        const controls = controlsRef.current;
+        
+        if (controls && !listenersAttached.current) {
+            // 清除可能殘留的舊監聽器
+            if (handleStartRef.current) controls.removeEventListener('start', handleStartRef.current);
+            if (handleChangeRef.current) controls.removeEventListener('change', handleChangeRef.current);
+            if (handleEndRef.current) controls.removeEventListener('end', handleEndRef.current);
+
+            listenersAttached.current = true;
+            
+            handleStartRef.current = () => {
+                demoState.current.active = false; 
+                interactionStartAngle.current = controls.getAzimuthalAngle();
+            };
+            
+            handleChangeRef.current = () => {
+                if (interactionStartAngle.current !== null && onUserRotated) {
+                    const currentAngle = controls.getAzimuthalAngle();
+                    if (Math.abs(currentAngle - interactionStartAngle.current) > 0.05) { // ~2.8 degrees
+                        onUserRotated();
+                        interactionStartAngle.current = null;
+                    }
+                }
+            };
+            
+            handleEndRef.current = () => {
+                interactionStartAngle.current = null;
+            };
+
+            controls.addEventListener('start', handleStartRef.current);
+            controls.addEventListener('change', handleChangeRef.current);
+            controls.addEventListener('end', handleEndRef.current);
+        }
+
+        if (demoState.current.active && controls) {
+            demoState.current.time += delta;
+            const t = demoState.current.time;
+            if (t < 2.5) {
+                const angleOffset = Math.sin(t * Math.PI / 1.25) * 0.17; // ~10 degrees
+                controls.setAzimuthalAngle(demoState.current.startAngle + angleOffset);
+                controls.update();
+            } else {
+                demoState.current.active = false;
+            }
+        }
+    });
+
+    return null;
 }
 
 const CameraResetter = ({ modelId, controlsRef }: { modelId?: string, controlsRef: any }) => {
@@ -1029,19 +1124,29 @@ const CameraResetter = ({ modelId, controlsRef }: { modelId?: string, controlsRe
 };
 
 const ModelViewer = React.forwardRef<any, ModelViewerProps>(({ 
-    url, wireframeUrl, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, isPickingColor, onColorPicked
+    url, wireframeUrl, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envPreset, envIntensity, envRotation, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, isPickingColor, onColorPicked, onModelReady, needsDemoRotation, onUserRotated
 }, ref) => {
   const controlsRef = useRef<any>(null);
   const screenshotHandlerRef = useRef<any>(null);
   const [transitionState, setTransitionState] = useState<'loading' | 'complete'>('loading');
+  const [prevModelId, setPrevModelId] = useState(modelId);
 
-  useEffect(() => {
+  if (modelId !== prevModelId) {
+      setPrevModelId(modelId);
       if (modelId && animatedModels.has(modelId)) {
+          setTransitionState('complete');
+      } else if (!wireframeUrl) {
           setTransitionState('complete');
       } else {
           setTransitionState('loading');
       }
-  }, [url, modelId]);
+  }
+
+  useEffect(() => {
+      if (transitionState === 'complete' && onModelReady) {
+          onModelReady();
+      }
+  }, [transitionState, onModelReady, modelId]);
 
   React.useImperativeHandle(ref, () => ({
       captureComposition: () => screenshotHandlerRef.current?.captureComposition() || Promise.resolve('')
@@ -1066,6 +1171,15 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         <AdaptiveDpr pixelated />
         <AdaptiveEvents />
         <PerspectiveCamera makeDefault position={DEFAULT_VIEW.pos} fov={DEFAULT_VIEW.fov} near={0.01} />
+        <CameraResetter modelId={modelId} controlsRef={controlsRef} />
+        <DemoRotationController 
+            key={modelId}
+            controlsRef={controlsRef} 
+            needsDemoRotation={needsDemoRotation} 
+            transitionState={transitionState} 
+            onUserRotated={onUserRotated} 
+            modelId={modelId}
+        />
         <OrbitControls 
             ref={controlsRef}
             makeDefault 
@@ -1077,7 +1191,6 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             autoRotateSpeed={3.0}
             enabled={!isPickingColor}
         />
-        <CameraResetter modelId={modelId} controlsRef={controlsRef} />
         <ScreenshotHandler ref={screenshotHandlerRef} />
         {wireframeUrl && transitionState === 'loading' && (
             <LoadingWireframeOverlay 
@@ -1137,21 +1250,24 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
           </div>
 
           {activeTexture && (
-            <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-700 delay-150">
-                <h2 className="text-[18px] lg:text-[24px] font-black tracking-tighter text-gray-900 uppercase">
+            <div className="flex flex-col items-center gap-1.5 animate-in fade-in zoom-in-95 duration-700 delay-150 w-full">
+                <h2 className="text-[15px] lg:text-[18px] font-black tracking-tighter text-gray-900 uppercase">
                     {activeTexture.title || activeTexture.name}
                 </h2>
-                <p className="text-[11px] lg:text-[13px] text-gray-500 font-medium leading-relaxed max-w-sm">
-                    {activeTexture.description}
-                </p>
-                <a 
-                  href={activeTexture.link || "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786"} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="mt-2 text-[10px] text-indigo-600 font-black uppercase tracking-widest underline underline-offset-8 decoration-indigo-200 hover:decoration-indigo-600 transition-all pointer-events-auto"
-                >
-                    Read more
-                </a>
+                <div className="flex items-center justify-center text-[11px] lg:text-[13px] text-gray-500 font-medium w-full">
+                    <span className="whitespace-nowrap overflow-hidden text-ellipsis">
+                        {activeTexture.description}
+                    </span>
+                    <a 
+                      href={activeTexture.link || "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786"} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="ml-1 shrink-0 text-indigo-600 hover:text-indigo-800 transition-colors pointer-events-auto inline-flex items-center"
+                      title="Read more"
+                    >
+                        <ArrowUpRight size={14} strokeWidth={3} />
+                    </a>
+                </div>
             </div>
           )}
         </div>
