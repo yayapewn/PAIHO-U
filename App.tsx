@@ -171,7 +171,7 @@ const App: React.FC = () => {
 
   const asideClasses = useMemo(() => {
     const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible pb-[env(safe-area-inset-bottom)]";
-    let mobileState = "bottom-0 left-0 w-full h-[32dvh] md:rounded-none border-t border-gray-200";
+    let mobileState = "bottom-0 left-0 w-full h-[40dvh] md:rounded-none border-t border-gray-200";
     if (selectedPart) mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
     else mobileState += " translate-y-full";
     
