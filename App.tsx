@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { RotateCw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor, Code, Save, Copy, Trash2, Share2, ArrowUpRight } from 'lucide-react';
+import { RotateCw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor, Code, Save, Copy, Trash2, Share2, ArrowUpRight, Grid, Palette } from 'lucide-react';
 import ModelViewer from './components/ModelViewer';
 import { ProColorPicker } from './components/ProColorPicker';
 import { ShareModal } from './components/ShareModal';
@@ -249,11 +249,11 @@ const App: React.FC = () => {
 
       <div className="relative flex-1">
         <nav className="absolute top-0 md:top-8 left-0 md:left-1/2 md:-translate-x-1/2 z-[50] flex w-full md:w-auto items-center justify-between md:justify-center p-2 pt-[max(env(safe-area-inset-top),0.5rem)] md:pt-2 bg-white/80 md:bg-transparent backdrop-blur-md md:backdrop-blur-[2px] border-b border-gray-200/50">
-          {MODELS.map((model, idx) => (
+            {MODELS.map((model, idx) => (
             <button
               key={model.id}
               onClick={() => handleModelSwitch(idx)}
-              className={`px-3 md:px-6 py-3 md:py-2 flex-1 md:flex-none text-[9px] md:text-[10px] uppercase tracking-[0.1em] md:tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'font-bold text-gray-900' : 'font-medium text-gray-400 hover:text-gray-600'}`}
+              className={`px-1 md:px-6 py-3 md:py-2 flex-1 md:flex-none text-[9px] md:text-[10px] uppercase tracking-[0.1em] md:tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'font-bold text-gray-900' : 'font-medium text-gray-400 hover:text-gray-600'} whitespace-nowrap`}
             >
               {model.name}
               {activeModelIndex === idx && (
@@ -472,6 +472,22 @@ const App: React.FC = () => {
               </div>
             )}
 
+            {selectedPart && (
+                <div className="md:hidden flex items-center justify-evenly bg-white border-b border-gray-100 shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.02)] z-10">
+                    {isLibrarySupported(selectedPart.name) && (
+                        <button onClick={(e) => { e.stopPropagation(); document.getElementById('content-library')?.scrollIntoView({ behavior: 'smooth' }); }} className="py-2 px-6 text-gray-400 hover:text-indigo-600 active:text-indigo-800 transition-colors">
+                            <Grid size={18} strokeWidth={2.5} />
+                        </button>
+                    )}
+                    <button onClick={(e) => { e.stopPropagation(); document.getElementById('content-color')?.scrollIntoView({ behavior: 'smooth' }); }} className="py-2 px-6 text-gray-400 hover:text-indigo-600 active:text-indigo-800 transition-colors">
+                        <Palette size={18} strokeWidth={2.5} />
+                    </button>
+                    <button onClick={(e) => handleShare(e)} className="py-2 px-6 text-gray-400 hover:text-indigo-600 active:text-indigo-800 transition-colors">
+                        <Share2 size={18} strokeWidth={2.5} />
+                    </button>
+                </div>
+            )}
+
             <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col h-full">
                 <div className="px-6 pb-10 pt-8 md:px-7 md:pt-12 md:pb-10 flex-1 space-y-10 md:space-y-12">
                     {selectedPart ? (
@@ -485,7 +501,7 @@ const App: React.FC = () => {
                                           <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                       </div>
                                   </div>
-                                  <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-[2px] border border-gray-200 bg-white rounded-[2px] overflow-hidden">
+                                  <div id="content-library" className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-[2px] border border-gray-200 bg-white rounded-[2px] overflow-hidden">
                                       {libraries.materials.map(t => (
                                           <button key={t.id} onClick={(e) => { e.stopPropagation(); applyTexture(t); }} className={`aspect-square overflow-hidden transition-all relative group bg-white ${currentTextureConfig?.url === t.url ? 'ring-[3px] ring-inset ring-indigo-600 z-10' : 'hover:opacity-90'}`}>
                                               <img src={t.url} className="w-full h-full object-cover transition-transform duration-700" alt={t.name} />
@@ -526,7 +542,7 @@ const App: React.FC = () => {
                                         <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                     </div>
                                 </div>
-                                <div className="px-1">
+                                <div id="content-color" className="px-1">
                                     <ProColorPicker 
                                       color={currentColorHex} 
                                       onChange={(hex) => updateTextureConfig('color', hex)}
