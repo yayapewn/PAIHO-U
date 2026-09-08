@@ -518,11 +518,11 @@ const App: React.FC = () => {
                                               className="group flex items-center justify-between p-3.5 rounded-[2px] bg-gray-50/80 hover:bg-indigo-50/80 border border-gray-100 hover:border-indigo-100 transition-all cursor-pointer"
                                               title="Explore Material"
                                           >
-                                              <div className="flex-1 pr-4">
-                                                  <h4 className="text-[12px] font-black uppercase tracking-[0.15em] text-gray-900 mb-1">
+                                              <div className="flex-1 min-w-0 pr-4">
+                                                  <h4 className="text-[12px] font-black uppercase tracking-[0.15em] text-gray-900 mb-1 break-words">
                                                       {activeTexture.title || activeTexture.name}
                                                   </h4>
-                                                  <p className="text-[12px] text-gray-500 font-medium leading-relaxed">
+                                                  <p className="text-[12px] text-gray-500 font-medium leading-relaxed whitespace-normal break-words">
                                                       {activeTexture.description}
                                                   </p>
                                               </div>

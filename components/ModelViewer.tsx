@@ -1249,6 +1249,28 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             </span>
           </div>
 
+          {activeTexture && (
+            <div className="flex flex-col items-center gap-1.5 animate-in fade-in zoom-in-95 duration-700 delay-150 w-full md:hidden">
+                <h2 className="text-[15px] lg:text-[18px] font-black tracking-tighter text-gray-900 uppercase">
+                    {activeTexture.title || activeTexture.name}
+                </h2>
+                <div className="text-center text-[11px] lg:text-[13px] text-gray-500 font-medium w-full max-w-xs px-2">
+                    <span className="whitespace-normal break-words leading-relaxed">
+                        {activeTexture.description}
+                    </span>
+                    <a
+                       href={activeTexture.link || "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786"}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="ml-1 inline-flex items-center align-middle text-indigo-600 hover:text-indigo-800 transition-colors pointer-events-auto"
+                      title="Read more"
+                    >
+                        <ArrowUpRight size={14} strokeWidth={3} />
+                    </a>
+                </div>
+            </div>
+          )}
+
 
         </div>
       )}
