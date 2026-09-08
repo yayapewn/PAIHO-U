@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { RotateCw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor, Code, Save, Copy, Trash2, Share2 } from 'lucide-react';
+import { RotateCw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor, Code, Save, Copy, Trash2, Share2, ArrowUpRight } from 'lucide-react';
 import ModelViewer from './components/ModelViewer';
 import { ProColorPicker } from './components/ProColorPicker';
 import { ShareModal } from './components/ShareModal';
@@ -492,6 +492,30 @@ const App: React.FC = () => {
                                           </button>
                                       ))}
                                   </div>
+                                  
+                                  {activeTexture && (
+                                      <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500 delay-100 fill-mode-both">
+                                          <a
+                                              href={activeTexture.link || "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786"}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="group flex items-center justify-between p-3.5 rounded-[2px] bg-gray-50/80 hover:bg-indigo-50/80 border border-gray-100 hover:border-indigo-100 transition-all cursor-pointer"
+                                              title="Explore Material"
+                                          >
+                                              <div className="flex-1 pr-4">
+                                                  <h4 className="text-[12px] font-black uppercase tracking-[0.15em] text-gray-900 mb-1">
+                                                      {activeTexture.title || activeTexture.name}
+                                                  </h4>
+                                                  <p className="text-[12px] text-gray-500 font-medium leading-relaxed">
+                                                      {activeTexture.description}
+                                                  </p>
+                                              </div>
+                                              <div className="w-8 h-8 shrink-0 rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100 flex items-center justify-center text-gray-400 group-hover:text-indigo-600 group-hover:border-indigo-200 group-hover:shadow-[0_4px_12px_rgba(79,70,229,0.12)] transition-all duration-300">
+                                                  <ArrowUpRight size={16} strokeWidth={2.5} />
+                                              </div>
+                                          </a>
+                                      </div>
+                                  )}
                               </section>
                             )}
 
