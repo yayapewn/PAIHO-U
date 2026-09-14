@@ -171,7 +171,7 @@ const App: React.FC = () => {
 
   const asideClasses = useMemo(() => {
     const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible pb-[env(safe-area-inset-bottom)]";
-    let mobileState = "bottom-0 left-0 w-full h-[40dvh] md:rounded-none border-t border-gray-200";
+    let mobileState = "bottom-0 left-0 w-full h-[36dvh] md:rounded-none border-t border-gray-200";
     if (selectedPart) mobileState += isPanelVisible ? " translate-y-0" : " translate-y-full";
     else mobileState += " translate-y-full";
     
@@ -461,16 +461,6 @@ const App: React.FC = () => {
               </button>
             )}
 
-            {selectedPart && (
-              <div className="md:hidden absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full px-2">
-                 <button 
-                  onClick={(e) => { e.stopPropagation(); setIsPanelVisible(!isPanelVisible); }}
-                  className="w-20 h-10 bg-white border-t border-x border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-[2px] flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-all duration-500"
-                >
-                   {isPanelVisible ? <ChevronDown size={20} strokeWidth={3} /> : <ChevronUp size={20} strokeWidth={3} />}
-                </button>
-              </div>
-            )}
 
             {selectedPart && (
                 <div className="md:hidden flex items-center justify-evenly bg-white border-b border-gray-100 shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.02)] z-10">
@@ -552,7 +542,7 @@ const App: React.FC = () => {
                                         <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                     </div>
                                 </div>
-                                <div id="content-color" className="px-1">
+                                <div id="content-color" className="px-1 scroll-mt-[6px] md:scroll-mt-0">
                                     <ProColorPicker 
                                       color={currentColorHex} 
                                       onChange={(hex) => updateTextureConfig('color', hex)}
