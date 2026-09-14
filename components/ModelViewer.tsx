@@ -29,7 +29,8 @@ const DEFAULT_VIEW = {
 const TRUSTED_DOMAINS = [
     'raw.githubusercontent.com',
     'huggingface.co',
-    'aistudiocdn.com'
+    'aistudiocdn.com',
+    'cdn.jsdelivr.net'
 ];
 
 // R3F 內建元素宣告，避免 TypeScript 在某些環境下的編譯錯誤
@@ -459,9 +460,11 @@ interface ModelProps {
 const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked, interactive = true }) => {
   const { scene } = useGLTF(url);
   // 使用獨立的 LoadingManager，避免觸發全域的 Suspense Loader（防止閃黑畫面）
-  const textureLoader = useMemo(() => {
+  const imageBitmapLoader = useMemo(() => {
       const manager = new THREE.LoadingManager();
-      return new THREE.TextureLoader(manager);
+      const loader = new THREE.ImageBitmapLoader(manager);
+      loader.setOptions({ imageOrientation: 'none' });
+      return loader;
   }, []);
   
   // 用於判斷是拖曳旋轉還是點擊部位
@@ -644,47 +647,117 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
         material.opacity = config.opacity;
         material.alphaTest = 0.05;
         
+        const hasColorMap = config.url && isUrlSafe(config.url);
+        const hasNormalMap = config.normalUrl && isUrlSafe(config.normalUrl);
+
         if (material.userData.shaderUniforms) {
-            // Enable smart color if NO external texture is applied.
-            const hasExternal = !!(config.url && isUrlSafe(config.url));
-            material.userData.shaderUniforms.uSmartColorEnabled.value = hasExternal ? 0.0 : 1.0;
+            material.userData.shaderUniforms.uSmartColorEnabled.value = hasColorMap ? 0.0 : 1.0;
         }
 
-        if (config.url && isUrlSafe(config.url)) {
-            if (mesh.userData.currentTextureUrl !== config.url) {
-                mesh.userData.currentTextureUrl = config.url; // 立即更新 URL，防止重複觸發載入
-                textureLoader.load(config.url, (texture) => {
-                    // 確保載入完成時，使用者沒有切換到其他貼圖
-                    if (mesh.userData.currentTextureUrl !== config.url) {
-                        texture.dispose();
+        // Define a unique key for the current texture combination to avoid race conditions
+        const textureComboKey = `${config.url || ''}|${config.normalUrl || ''}`;
+
+        if (hasColorMap || hasNormalMap) {
+            if (mesh.userData.currentTextureComboKey !== textureComboKey) {
+                mesh.userData.currentTextureComboKey = textureComboKey; // Mark as loading this specific combo
+
+                const promises: Promise<{ type: 'color' | 'normal', texture: THREE.Texture | null }>[] = [];
+
+                if (hasColorMap) {
+                    promises.push(new Promise((resolve) => {
+                        imageBitmapLoader.load(config.url!, (imageBitmap) => {
+                            const texture = new THREE.Texture(imageBitmap);
+                            texture.flipY = false;
+                            texture.colorSpace = THREE.SRGBColorSpace;
+                            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                            resolve({ type: 'color', texture });
+                        }, undefined, () => resolve({ type: 'color', texture: null }));
+                    }));
+                }
+
+                if (hasNormalMap) {
+                    promises.push(new Promise((resolve) => {
+                        imageBitmapLoader.load(config.normalUrl!, (imageBitmap) => {
+                            const texture = new THREE.Texture(imageBitmap);
+                            texture.flipY = false;
+                            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                            resolve({ type: 'normal', texture });
+                        }, undefined, () => resolve({ type: 'normal', texture: null }));
+                    }));
+                }
+
+                Promise.all(promises).then((results) => {
+                    // Check if the user hasn't clicked another texture while we were downloading
+                    if (mesh.userData.currentTextureComboKey !== textureComboKey) {
+                        // Dispose of the downloaded textures since they are no longer needed
+                        results.forEach(res => {
+                            if (res.texture) res.texture.dispose();
+                        });
                         return;
                     }
-                    
-                    texture.flipY = false;
-                    texture.colorSpace = THREE.SRGBColorSpace;
-                    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-                    texture.repeat.set(config.scale, config.scale);
-                    texture.offset.set(config.offsetX, config.offsetY);
-                    texture.rotation = (config.rotation * Math.PI) / 180;
-                    texture.center.set(0.5, 0.5);
-                    
-                    if (material.map && material.map !== origMat.map) {
-                        material.map.dispose();
+
+                    let colorTexture: THREE.Texture | null = null;
+                    let normalTexture: THREE.Texture | null = null;
+
+                    results.forEach(res => {
+                        if (res.type === 'color') colorTexture = res.texture;
+                        if (res.type === 'normal') normalTexture = res.texture;
+                    });
+
+                    // Apply Color Texture
+                    if (hasColorMap) {
+                        if (colorTexture) {
+                            colorTexture.repeat.set(config.scale, config.scale);
+                            colorTexture.offset.set(config.offsetX, config.offsetY);
+                            colorTexture.rotation = (config.rotation * Math.PI) / 180;
+                            colorTexture.center.set(0.5, 0.5);
+                            colorTexture.needsUpdate = true;
+                            
+                            if (material.map && material.map !== origMat.map) material.map.dispose();
+                            material.map = colorTexture;
+                        }
+                    } else {
+                         // Fallback logic if no color map was requested but a normal map was
+                         // ... (handles restoring original material or clearing based on categoryB)
                     }
-                    material.map = texture;
+
+                    // Apply Normal Texture
+                    if (hasNormalMap) {
+                        if (normalTexture) {
+                            normalTexture.repeat.set(config.scale, config.scale);
+                            normalTexture.offset.set(config.offsetX, config.offsetY);
+                            normalTexture.rotation = (config.rotation * Math.PI) / 180;
+                            normalTexture.center.set(0.5, 0.5);
+                            normalTexture.needsUpdate = true;
+
+                            if (material.normalMap && material.normalMap !== origMat.normalMap) material.normalMap.dispose();
+                            material.normalMap = normalTexture;
+                        }
+                    } else {
+                         if (material.normalMap !== origMat.normalMap) {
+                            if (material.normalMap) material.normalMap.dispose();
+                            material.normalMap = origMat.normalMap;
+                        }
+                    }
+
                     material.needsUpdate = true;
-                }, undefined, (err) => {
-                    console.error("Texture failed:", config.url, err);
-                    if (mesh.userData.currentTextureUrl === config.url) {
-                        mesh.userData.currentTextureUrl = null;
-                    }
                 });
-            } else if (material.map && material.map !== origMat.map) {
-                material.map.repeat.set(config.scale, config.scale);
-                material.map.rotation = (config.rotation * Math.PI) / 180;
-                material.map.offset.set(config.offsetX, config.offsetY);
+            } else {
+                // If it's the exact same texture combination, just update the transforms (scale, offset, rotation)
+                if (material.map && material.map !== origMat.map) {
+                    material.map.repeat.set(config.scale, config.scale);
+                    material.map.rotation = (config.rotation * Math.PI) / 180;
+                    material.map.offset.set(config.offsetX, config.offsetY);
+                }
+                if (material.normalMap && material.normalMap !== origMat.normalMap) {
+                    material.normalMap.repeat.set(config.scale, config.scale);
+                    material.normalMap.rotation = (config.rotation * Math.PI) / 180;
+                    material.normalMap.offset.set(config.offsetX, config.offsetY);
+                }
             }
         } else {
+            mesh.userData.currentTextureComboKey = null; // Reset key
+            
             const upperName = getNormalizedPartName(mesh.name).toUpperCase();
             
             let categoryBParts: string[] = [];
@@ -706,7 +779,6 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                 if (material.emissiveMap !== null) { material.emissiveMap = null; changed = true; }
                 if (material.vertexColors) { material.vertexColors = false; changed = true; }
                 if (changed) {
-                    mesh.userData.currentTextureUrl = null;
                     material.needsUpdate = true;
                 }
             } else {
@@ -732,51 +804,16 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                     material.vertexColors = origMat.vertexColors;
                     changed = true;
                 }
+                
+                if (material.normalMap !== origMat.normalMap) {
+                    if (material.normalMap && material.normalMap !== origMat.normalMap) material.normalMap.dispose();
+                    material.normalMap = origMat.normalMap;
+                    changed = true;
+                }
+
                 if (changed) {
-                    mesh.userData.currentTextureUrl = null;
                     material.needsUpdate = true;
                 }
-            }
-        }
-
-        if (config.normalUrl && isUrlSafe(config.normalUrl)) {
-            if (mesh.userData.currentNormalUrl !== config.normalUrl) {
-                mesh.userData.currentNormalUrl = config.normalUrl; // 立即更新 URL
-                textureLoader.load(config.normalUrl, (normalTexture) => {
-                    // 確保載入完成時，使用者沒有切換到其他貼圖
-                    if (mesh.userData.currentNormalUrl !== config.normalUrl) {
-                        normalTexture.dispose();
-                        return;
-                    }
-                    normalTexture.flipY = false;
-                    normalTexture.wrapS = normalTexture.wrapT = THREE.RepeatWrapping;
-                    normalTexture.repeat.set(config.scale, config.scale);
-                    normalTexture.offset.set(config.offsetX, config.offsetY);
-                    normalTexture.rotation = (config.rotation * Math.PI) / 180;
-                    normalTexture.center.set(0.5, 0.5);
-                    
-                    if (material.normalMap && material.normalMap !== origMat.normalMap) {
-                        material.normalMap.dispose();
-                    }
-                    material.normalMap = normalTexture;
-                    material.needsUpdate = true;
-                }, undefined, (err) => {
-                    console.error("Normal map failed:", config.normalUrl, err);
-                    if (mesh.userData.currentNormalUrl === config.normalUrl) {
-                        mesh.userData.currentNormalUrl = null;
-                    }
-                });
-            } else if (material.normalMap && material.normalMap !== origMat.normalMap) {
-                material.normalMap.repeat.set(config.scale, config.scale);
-                material.normalMap.rotation = (config.rotation * Math.PI) / 180;
-                material.normalMap.offset.set(config.offsetX, config.offsetY);
-            }
-        } else {
-            if (material.normalMap !== origMat.normalMap) {
-                if (material.normalMap) material.normalMap.dispose();
-                material.normalMap = origMat.normalMap;
-                mesh.userData.currentNormalUrl = null;
-                material.needsUpdate = true;
             }
         }
       } else {

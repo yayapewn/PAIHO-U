@@ -503,8 +503,18 @@ const App: React.FC = () => {
                                   </div>
                                   <div id="content-library" className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-[2px] border border-gray-200 bg-white rounded-[2px] overflow-hidden">
                                       {libraries.materials.map(t => (
-                                          <button key={t.id} onClick={(e) => { e.stopPropagation(); applyTexture(t); }} className={`aspect-square overflow-hidden transition-all relative group bg-white ${currentTextureConfig?.url === t.url ? 'ring-[3px] ring-inset ring-indigo-600 z-10' : 'hover:opacity-90'}`}>
-                                              <img src={t.url} className="w-full h-full object-cover transition-transform duration-700" alt={t.name} />
+                                          <button key={t.id} onClick={(e) => { e.stopPropagation(); applyTexture(t); }} className="aspect-square overflow-hidden relative group bg-white cursor-pointer transition-all duration-300">
+                                              {/* Selection Border / Inset Effect */}
+                                              <div className={`absolute inset-0 z-20 pointer-events-none transition-all duration-300 ${currentTextureConfig?.url === t.url ? 'ring-2 ring-inset ring-indigo-600 shadow-[inset_0_0_0_4px_white]' : 'ring-0 ring-transparent'}`}></div>
+                                              
+                                              {/* Image with Hover Scale & Active Shrink */}
+                                              <img 
+                                                src={t.url} 
+                                                className={`w-full h-full object-cover transition-all duration-500 ease-out 
+                                                  ${currentTextureConfig?.url === t.url ? 'scale-90 opacity-100' : 'scale-100 group-hover:scale-110 group-hover:brightness-95 opacity-90 group-hover:opacity-100'}
+                                                `} 
+                                                alt={t.name} 
+                                              />
                                           </button>
                                       ))}
                                   </div>
