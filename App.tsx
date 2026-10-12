@@ -67,16 +67,31 @@ const App: React.FC = () => {
     return !disabledParts.includes(name);
   };
 
-  // 當使用者選取部位時，背景非同步預載該部位的材質（On-Demand Preload，不影響主執行緒與 UI）
+  // 網頁載入時立即在背景預熱快取所有材質縮圖至瀏覽器快取池，確保使用者點選部位時瞬間呈現
+  useEffect(() => {
+    const allTextures = [...GENERAL_TEXTURES, ...TRAVELER_VAMP_TEXTURES];
+    allTextures.forEach(item => {
+      const src = item.thumbnail || item.url;
+      if (src) {
+        const img = new Image();
+        img.src = src;
+      }
+    });
+  }, []);
+
+  // 當使用者選取部位時，背景非同步預載該部位的 3D 材質（延遲 120ms 避免搶佔 UI 面板縮圖渲染頻寬）
   useEffect(() => {
     if (selectedPart && isLibrarySupported(selectedPart.name)) {
       const activePartKey = `${currentModel.id}_${selectedPart.name}`;
       const activeConfig = partTextures[activePartKey];
-      textureCacheManager.preloadPartTextures(
-        currentMaterials,
-        selectedPart.name,
-        activeConfig?.url
-      );
+      const timer = setTimeout(() => {
+        textureCacheManager.preloadPartTextures(
+          currentMaterials,
+          selectedPart.name,
+          activeConfig?.url
+        );
+      }, 120);
+      return () => clearTimeout(timer);
     }
   }, [selectedPart, currentMaterials, currentModel.id, partTextures]);
 
@@ -508,16 +523,16 @@ const App: React.FC = () => {
                                           <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                       </div>
                                   </div>
-                                  <div id="content-library" className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-[2px] border border-gray-200 bg-white rounded-[2px] overflow-hidden">
-                                      {currentMaterials.map((t, idx) => (
-                                          <button key={t.id} onClick={(e) => { e.stopPropagation(); applyTexture(t); }} className="aspect-square overflow-hidden relative group bg-white cursor-pointer transition-all duration-300">
+                                  <div id="content-library" className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-[2px] border border-gray-200 bg-gray-100 rounded-[2px] overflow-hidden">
+                                      {currentMaterials.map((t) => (
+                                          <button key={t.id} onClick={(e) => { e.stopPropagation(); applyTexture(t); }} className="aspect-square overflow-hidden relative group bg-gray-50 cursor-pointer transition-all duration-300">
                                               {/* Selection Border / Inset Effect */}
                                               <div className={`absolute inset-0 z-20 pointer-events-none transition-all duration-300 ${currentTextureConfig?.url === t.url ? 'ring-2 ring-inset ring-indigo-600 shadow-[inset_0_0_0_4px_white]' : 'ring-0 ring-transparent'}`}></div>
                                               
                                               {/* Image with Hover Scale & Active Shrink */}
                                               <img 
                                                 src={t.thumbnail || t.url} 
-                                                loading={idx < 3 ? "eager" : "lazy"}
+                                                loading="eager"
                                                 decoding="async"
                                                 className={`w-full h-full object-cover transition-all duration-300 ease-out 
                                                   ${currentTextureConfig?.url === t.url ? 'scale-90 opacity-100' : 'scale-100 group-hover:scale-110 group-hover:brightness-95 opacity-90 group-hover:opacity-100'}
