@@ -1,0 +1,88 @@
+name: Deploy PAIHO-U
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare project
+        shell: bash
+        run: |
+          ZIP=$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | grep -Ei '\.zip$' | head -n 1 || true)
+
+          if [ -n "$ZIP" ] && [ -f "$ZIP" ]; then
+            echo "Using ZIP: $ZIP"
+
+            if unzip -l "$ZIP" | grep -E '(^|/)\.env($|\.)'; then
+              echo "ERROR: ZIP contains .env file. Do not upload secrets to a public GitHub repository."
+              exit 1
+            fi
+
+            mkdir -p /tmp/paiho
+            unzip -q "$ZIP" -d /tmp/paiho
+
+            PACKAGE=$(find /tmp/paiho -name package.json -not -path '*/node_modules/*' | head -n 1)
+
+            if [ -z "$PACKAGE" ]; then
+              echo "package.json not found in ZIP"
+              exit 1
+            fi
+
+            PROJECT=$(dirname "$PACKAGE")
+            echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+          else
+            echo "No new ZIP. Using repository source."
+            echo "PROJECT=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        working-directory: ${{ env.PROJECT }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        working-directory: ${{ env.PROJECT }}
+        run: npm run build -- --base=/PAIHO-U/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.PROJECT }}/dist
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
