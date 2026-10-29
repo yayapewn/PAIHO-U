@@ -45,11 +45,59 @@ export const GENERAL_TEXTURES: TextureItem[] = [
 ];
 
 export const TRAVELER_VAMP_TEXTURES: TextureItem[] = [
-  { id: 'traveler_vamp_01', name: 'Vamp 01', url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_01.jpg', normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_01.jpg' },
-  { id: 'traveler_vamp_02', name: 'Vamp 02', url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_02.jpg', normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_02.jpg' },
-  { id: 'traveler_vamp_03', name: 'Vamp 03', url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_03.jpg', normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_03.jpg' },
-  { id: 'traveler_vamp_04', name: 'Vamp 04', url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_04.jpg', normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_04.jpg' },
-  { id: 'traveler_vamp_05', name: 'Vamp 05', url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_05.jpg', normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_05.jpg' },
-  { id: 'traveler_vamp_06', name: 'Vamp 06', url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_06.jpg', normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_06.jpg' },
+  { 
+    id: 'traveler_vamp_01', 
+    name: 'Vamp 01', 
+    url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_01.jpg', 
+    normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_01.jpg',
+    title: 'PERFORMANCE JACQUARD 01',
+    description: 'High-density engineered jacquard weave delivering dynamic stability and dimensional micro-texture.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'traveler_vamp_02', 
+    name: 'Vamp 02', 
+    url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_02.jpg', 
+    normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_02.jpg',
+    title: 'AERO-KNIT FLEX 02',
+    description: 'Ultralight stretch yarn knit for adaptive foot contouring and superior breathability during movement.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'traveler_vamp_03', 
+    name: 'Vamp 03', 
+    url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_03.jpg', 
+    normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_03.jpg',
+    title: 'BIO-CELLULAR MESH 03',
+    description: 'Hexagonal open-pore cell matrix engineered for optimal thermal regulation and rapid moisture dispersal.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'traveler_vamp_04', 
+    name: 'Vamp 04', 
+    url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_04.jpg', 
+    normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_04.jpg',
+    title: 'TACTICAL REINFORCED RIPSTOP 04',
+    description: 'Abrasion-resistant technical composite weave reinforced with high-tenacity filament threads.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'traveler_vamp_05', 
+    name: 'Vamp 05', 
+    url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_05.jpg', 
+    normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_05.jpg',
+    title: 'ECO-RECYCLE WOVEN 05',
+    description: 'Sustainable post-consumer polymer fabric offering plush tactile finish and resilient tensile strength.',
+    link: UNIFORM_LINK
+  },
+  { 
+    id: 'traveler_vamp_06', 
+    name: 'Vamp 06', 
+    url: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_color_06.jpg', 
+    normalUrl: 'https://cdn.jsdelivr.net/gh/yayapewn/shoe-textures@main/texture/traveler_vamp_normal_06.jpg',
+    title: 'FUTURISTIC 3D RELIEF 06',
+    description: 'Precision micro-embossed surface topography engineered for tactile depth and optical motion effects.',
+    link: UNIFORM_LINK
+  },
 ];
 

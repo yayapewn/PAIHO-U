@@ -8,7 +8,7 @@ import { MODELS, GENERAL_TEXTURES, TRAVELER_VAMP_TEXTURES } from './data';
 import { useAppStore } from './store';
 import { textureCacheManager } from './services/textureCacheManager';
 
-const ENABLE_DEV_TOOLS = true;
+const ENABLE_DEV_TOOLS = false;
 
 const App: React.FC = () => {
   const {
@@ -39,15 +39,10 @@ const App: React.FC = () => {
   const modelViewerRef = useRef<any>(null);
   const currentModel = MODELS[activeModelIndex];
 
-  // 即時且同步推導當前部位可用的材質列表，避免等待 useEffect 造成的單幀閃爍或延遲
+  // 即時且同步推導當前部位可用的材質列表（暫時指定所有部位使用 TRAVELER_VAMP_TEXTURES）
   const currentMaterials = useMemo(() => {
-    if (!selectedPart) return GENERAL_TEXTURES;
-    const partName = selectedPart.name.toUpperCase();
-    if (currentModel.id === 'traveler' && partName === 'VAMP') {
-      return TRAVELER_VAMP_TEXTURES;
-    }
-    return GENERAL_TEXTURES;
-  }, [currentModel.id, selectedPart]);
+    return TRAVELER_VAMP_TEXTURES;
+  }, []);
 
   useEffect(() => {
     setLibraries({ materials: currentMaterials });
