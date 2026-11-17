@@ -5,21 +5,18 @@ import * as THREE from 'three';
 import { ArrowUpRight } from 'lucide-react';
 import { SelectedPart, TextureConfig, TextureItem } from '../types';
 import { textureCacheManager } from '../services/textureCacheManager';
-
-// 標準化八大部位名稱
-const MAIN_PARTS = [
-  'VAMP', 'TONGUE', 'COLLAR', 'PULL_TAB', 
-  'HEEL_COUNTER', 'WELT', 'MIDSOLE', 'OUTSOLE'
-];
-
-// 包含模型原始 ID 的互動關鍵字
-const INTERACTIVE_KEYWORDS = [
-  ...MAIN_PARTS,
-  'Shape027_1', 'Shape027', 'Line040', 'Shape026', 'Line048',
-  'OBJECT011', 'OBJECT018', 'OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 
-  'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 
-  'HEEL STRAP', 'QUARTER OVERLAY', 'SHOELACE'
-];
+import {
+  getNormalizedPartName,
+  getPartStorageKey,
+  isPartInteractive,
+  isCategoryBPart,
+  isSmartColorPart,
+  isSmartInsolePart,
+  isSmartInvertLabelPart,
+  isSmartDarkTextPart,
+  isSmartChromaLogoPart,
+  getLinkedColorParts
+} from '../services/partConfig';
 
 const DEFAULT_VIEW = {
     pos: [0.85, 0, 0] as [number, number, number], 
@@ -40,64 +37,7 @@ const AmbientLight = 'ambientLight' as any;
 const DirectionalLight = 'directionalLight' as any;
 const Primitive = 'primitive' as any;
 
-/**
- * 將模型網格名稱映射為標準化的部位名稱（依據 Traveler 運動鞋設計圖）
- */
-const getNormalizedPartName = (meshName: string): string => {
-    const upperName = meshName.toUpperCase();
-    
-    // Traveler 專屬部位名稱對照
-    if (upperName.includes('TONGUE_PULL_TAB')) return 'Tongue Pull Tab';
-    if (upperName.includes('TONGUE_LABEL')) return 'Tongue Label';
-    if (upperName.includes('TONGUE_REINFORCEMENT')) return 'Tongue Reinforcement';
-    if (upperName.includes('TONGUE')) return 'Tongue';
-    
-    if (upperName.includes('HEEL_PULL_TAB')) return 'Heel Pull Tab';
-    if (upperName.includes('HEEL_COLLAR_REINFORCEMENT') || upperName.includes('HEEL COLLAR REINFORCEMENT') || upperName.includes('OBJECT018')) return 'Heel Collar Reinforcement';
-    if (upperName.includes('HEEL_COUNTER')) return 'Heel Counter';
-    if (upperName.includes('HEEL_STRAP')) return 'Heel Strap';
-    
-    if (upperName.includes('QUARTER_LABEL')) return 'Quarter Label';
-    if (upperName.includes('QUARTER_OVERLAY')) return 'Quarter Overlay';
-    
-    if (upperName.includes('VAMP') || upperName.includes('SHAPE027')) return 'Vamp';
-    if (upperName.includes('SHOELACE') || upperName.includes('SHAPE026')) return 'Shoelace';
-    if (upperName.includes('EYELET')) return 'Eyelet';
-    if (upperName.includes('OUTSOLE')) return 'Outsole';
-    if (upperName.includes('MIDSOLE')) return 'Midsole';
-    if (upperName.includes('WELT')) return 'Welt';
-    if (upperName.includes('COLLAR')) return 'Collar';
-    if (upperName.includes('PULL_TAB')) return 'Pull Tab';
-    if (upperName.includes('LINE048')) return 'Line048';
-    
-    // 預設處理：移除底線與結尾數字，並轉為首字母大寫
-    return meshName
-        .replace(/_/g, ' ')
-        .replace(/\d+$/, '')
-        .trim()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
-};
-
-const isInteractive = (name: string, modelId?: string) => {
-    if (!name) return false;
-    const upperName = name.toUpperCase();
-    
-    // 黑名單：不管什麼鞋款，這些部位絕對不可互動 (Static Read-only)
-    const blacklist = ['OBJECT021', 'OBJECT022', 'OBJECT001'];
-    if (blacklist.some(bl => upperName.includes(bl))) {
-        return false;
-    }
-    
-    // 如果是 traveler 模型，除了黑名單外的所有網格都視為可互動
-    if (modelId === 'traveler') {
-        return true;
-    }
-    
-    // 其他鞋款則使用白名單機制
-    return INTERACTIVE_KEYWORDS.some(keyword => upperName.includes(keyword.toUpperCase()));
-};
+const isInteractive = (name: string, modelId?: string) => isPartInteractive(name, modelId);
 
 const isUrlSafe = (url: string) => {
     if (!url) return false;
@@ -355,8 +295,9 @@ const CustomLoader = ({ hasWireframe }: { hasWireframe: boolean }) => {
 };
 
 const animatedModels = new Set<string>();
+const loadedModelUrls = new Set<string>();
 
-const LoadingWireframeMesh = ({ url, scale, rotation, position, active, onComplete }: { url: string, scale: number, rotation: any, position: any, active: boolean, onComplete: () => void }) => {
+const LoadingWireframeMesh = ({ url, colorModelUrl, scale, rotation, position, active, onComplete }: { url: string, colorModelUrl?: string, scale: number, rotation: any, position: any, active: boolean, onComplete: () => void }) => {
     const { scene } = useGLTF(url);
     const meshRef = useRef<THREE.Group>(null);
     const progress = useRef(0);
@@ -368,13 +309,15 @@ const LoadingWireframeMesh = ({ url, scale, rotation, position, active, onComple
         const safeDelta = Math.min(delta, 0.1); 
         progress.current += safeDelta / DURATION;
         
+        const isColorModelReady = !active || (colorModelUrl ? loadedModelUrls.has(colorModelUrl) : false);
+
         let isDone = false;
         if (progress.current >= 1.0) {
-            if (!active) {
+            if (isColorModelReady) {
                 isDone = true;
                 progress.current = 1.0;
             } else {
-                progress.current -= 1.0; // Loop seamlessly
+                progress.current -= 1.0; // Loop seamlessly until color model is ready
             }
         }
         
@@ -384,7 +327,6 @@ const LoadingWireframeMesh = ({ url, scale, rotation, position, active, onComple
         
         meshRef.current.rotation.x = rotation[0];
         meshRef.current.rotation.z = rotation[2];
-        meshRef.current.scale.setScalar(scale);
         
         const targetY = rotation[1];
         const startY = targetY - Math.PI * 2;
@@ -413,14 +355,16 @@ const LoadingWireframeMesh = ({ url, scale, rotation, position, active, onComple
 
     return (
         <group position={position} pointerEvents="none">
-            <Center>
-                <primitive object={scene} ref={meshRef} scale={scale} rotation={rotation} />
-            </Center>
+            <group ref={meshRef}>
+                <Center>
+                    <primitive object={scene} scale={scale} />
+                </Center>
+            </group>
         </group>
     );
 };
 
-const LoadingWireframeOverlay = ({ url, scale, rotation, position, modelId, onComplete }: { url: string, scale: number, rotation: any, position: any, modelId: string, onComplete: () => void }) => {
+const LoadingWireframeOverlay = ({ url, colorModelUrl, scale, rotation, position, modelId, onComplete }: { url: string, colorModelUrl?: string, scale: number, rotation: any, position: any, modelId: string, onComplete: () => void }) => {
     const { active } = useProgress();
     
     const adjustedScale = modelId === 'traveler' ? scale * 0.98 : scale;
@@ -431,6 +375,7 @@ const LoadingWireframeOverlay = ({ url, scale, rotation, position, modelId, onCo
         <Suspense fallback={null}>
             <LoadingWireframeMesh 
                 url={url} 
+                colorModelUrl={colorModelUrl}
                 scale={adjustedScale} 
                 rotation={rotation} 
                 position={position} 
@@ -461,6 +406,10 @@ interface ModelProps {
 const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked, interactive = true }) => {
   const { scene } = useGLTF(url);
   
+  useEffect(() => {
+    if (url) loadedModelUrls.add(url);
+  }, [url]);
+
   // 用於判斷是拖曳旋轉還是點擊部位
   const pointerDownPos = useRef({ x: 0, y: 0 });
 
@@ -486,13 +435,13 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                 : (mesh.material as THREE.Material).clone();
                 
             // 針對鞋墊 (OBJECT019)，從最源頭剝離其光澤度，確保初始與還原時都無光澤
-            if (getNormalizedPartName(mesh.name).toUpperCase() === 'OBJECT019') {
+            if (isSmartInsolePart(getNormalizedPartName(mesh.name, modelId), modelId)) {
                 mesh.userData.originalMaterial.roughness = 1.0;
                 mesh.userData.originalMaterial.roughnessMap = null;
             }
         }
         
-        // 使用 isInteractive 來判斷是否為可互動部位 (支援黑白名單機制)
+        // 使用 isInteractive 來判斷是否為可互動部位 (支援黑白名單與各鞋款獨立機制)
         const interactiveFlag = isInteractive(mesh.name, modelId);
 
         if (interactiveFlag) {
@@ -509,23 +458,32 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                     newMat.emissiveIntensity = 0;
                 }
 
-                // SMART COLOR LOGIC FOR LOGO RETENTION
-                const pName = getNormalizedPartName(mesh.name).toUpperCase();
-                const isSmartPart = ['OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'OUTSOLE'].includes(pName);
+                // SMART COLOR LOGIC FOR LOGO RETENTION (依鞋款獨立設定)
+                const pName = getNormalizedPartName(mesh.name, modelId);
+                const isSmartPart = isSmartColorPart(pName, modelId);
 
                 if (isSmartPart) {
                     newMat.userData.shaderUniforms = {
                         uSmartColorEnabled: { value: 0.0 },
-                        uIsSmartInsole: { value: pName === 'OBJECT019' ? 1.0 : 0.0 }
+                        uIsSmartInsole: { value: isSmartInsolePart(pName, modelId) ? 1.0 : 0.0 },
+                        uIsSmartInvertLabel: { value: isSmartInvertLabelPart(pName, modelId) ? 1.0 : 0.0 },
+                        uIsSmartDarkText: { value: isSmartDarkTextPart(pName, modelId) ? 1.0 : 0.0 },
+                        uIsSmartChromaLogo: { value: isSmartChromaLogoPart(pName, modelId) ? 1.0 : 0.0 }
                     };
 
                     newMat.onBeforeCompile = (shader: any) => {
                         shader.uniforms.uSmartColorEnabled = newMat.userData.shaderUniforms.uSmartColorEnabled;
                         shader.uniforms.uIsSmartInsole = newMat.userData.shaderUniforms.uIsSmartInsole;
+                        shader.uniforms.uIsSmartInvertLabel = newMat.userData.shaderUniforms.uIsSmartInvertLabel;
+                        shader.uniforms.uIsSmartDarkText = newMat.userData.shaderUniforms.uIsSmartDarkText;
+                        shader.uniforms.uIsSmartChromaLogo = newMat.userData.shaderUniforms.uIsSmartChromaLogo;
 
                         shader.fragmentShader = `
                             uniform float uSmartColorEnabled;
                             uniform float uIsSmartInsole;
+                            uniform float uIsSmartInvertLabel;
+                            uniform float uIsSmartDarkText;
+                            uniform float uIsSmartChromaLogo;
                             ${shader.fragmentShader}
                         `;
 
@@ -535,23 +493,44 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                             #include <map_fragment>
                             #ifdef USE_MAP
                                 if ( uSmartColorEnabled > 0.5 ) {
-                                    // 1. Multiply blending for the background and black text
-                                    // This natively perfectly handles anti-aliasing for black text and gray shadows.
-                                    vec3 tintedCanvas = sampledDiffuseColor.rgb * diffuse;
-                                    
-                                    // 2. Logo Protection Mask (Red Dominance)
-                                    // Extract how "red" the pixel is. 1.5 multiplier ensures the core logo is fully protected 
-                                    // even if it's a slightly darker red, while smoothstep/clamp handles the anti-aliased edges.
-                                    float redDominance = sampledDiffuseColor.r - max(sampledDiffuseColor.g, sampledDiffuseColor.b);
-                                    float logoAlpha = clamp(redDominance * 1.5, 0.0, 1.0);
-                                    
-                                    // 3. Mathematical Un-Premultiply for Red Logo
-                                    // We only need to restore the Red channel that might be destroyed by tintedCanvas (e.g. if diffuse is Cyan).
-                                    // The G and B channels of the red logo are naturally dark and can safely be multiplied.
-                                    vec3 redRestore = vec3(sampledDiffuseColor.r, 0.0, 0.0);
-                                    
-                                    // Final Color: Tinted Canvas + Restored Red (only where background color suppressed it)
-                                    diffuseColor.rgb = tintedCanvas + logoAlpha * redRestore * (vec3(1.0) - diffuse);
+                                    if ( uIsSmartInvertLabel > 0.5 ) {
+                                        // 第 4.2 種：高對比智慧標籤模式（底色改為目標色，文字/Logo 僅有黑/白兩種並依背景明度自動切換）
+                                        vec3 texSrgb = pow(clamp(sampledDiffuseColor.rgb, 0.00001, 1.0), vec3(1.0 / 2.2));
+                                        float texSrgbLum = dot(texSrgb, vec3(0.2126, 0.7152, 0.0722));
+                                        float texSrgbChroma = max(texSrgb.r, max(texSrgb.g, texSrgb.b)) - min(texSrgb.r, min(texSrgb.g, texSrgb.b));
+
+                                        // C: 灰/白底彩色Logo（抓彩度） | B: 淺底黑字（抓低亮度） | A: 黑底白字（抓高亮度）
+                                        float textMask = uIsSmartChromaLogo > 0.5
+                                            ? smoothstep(0.08, 0.35, texSrgbChroma)
+                                            : (uIsSmartDarkText > 0.5
+                                                ? (1.0 - smoothstep(0.18, 0.52, texSrgbLum))
+                                                : smoothstep(0.25, 0.78, texSrgbLum));
+
+                                        float bgLinearLum = dot(diffuse, vec3(0.2126, 0.7152, 0.0722));
+                                        float bgPerceivedLum = pow(clamp(bgLinearLum, 0.00001, 1.0), 1.0 / 2.2);
+                                        float blackTextFactor = smoothstep(0.66, 0.78, bgPerceivedLum);
+                                        vec3 textColor = mix(vec3(1.0), vec3(0.0), blackTextFactor);
+
+                                        diffuseColor.rgb = mix(diffuse, textColor, textMask);
+                                    } else {
+                                        // 1. Multiply blending for the background and black text
+                                        // This natively perfectly handles anti-aliasing for black text and gray shadows.
+                                        vec3 tintedCanvas = sampledDiffuseColor.rgb * diffuse;
+                                        
+                                        // 2. Logo Protection Mask (Red Dominance)
+                                        // Extract how "red" the pixel is. 1.5 multiplier ensures the core logo is fully protected 
+                                        // even if it's a slightly darker red, while smoothstep/clamp handles the anti-aliased edges.
+                                        float redDominance = sampledDiffuseColor.r - max(sampledDiffuseColor.g, sampledDiffuseColor.b);
+                                        float logoAlpha = clamp(redDominance * 1.5, 0.0, 1.0);
+                                        
+                                        // 3. Mathematical Un-Premultiply for Red Logo
+                                        // We only need to restore the Red channel that might be destroyed by tintedCanvas (e.g. if diffuse is Cyan).
+                                        // The G and B channels of the red logo are naturally dark and can safely be multiplied.
+                                        vec3 redRestore = vec3(sampledDiffuseColor.r, 0.0, 0.0);
+                                        
+                                        // Final Color: Tinted Canvas + Restored Red (only where background color suppressed it)
+                                        diffuseColor.rgb = tintedCanvas + logoAlpha * redRestore * (vec3(1.0) - diffuse);
+                                    }
                                 }
                             #endif
                             `
@@ -571,36 +550,40 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
 
   useEffect(() => {
     const handlePreviewColor = (e: any) => {
-      const { partId, color } = e.detail;
+      const { partId, modelId: eventModelId, color } = e.detail;
+      if (eventModelId && eventModelId !== modelId) return;
+
       const clickedMesh = cachedMeshes.find(m => m.uuid === partId);
       
       if (clickedMesh) {
-        const targetPartName = getNormalizedPartName(clickedMesh.name);
+        const targetPartName = getNormalizedPartName(clickedMesh.name, modelId);
+        const linkedPartSet = new Set(
+          getLinkedColorParts(targetPartName, modelId).map((name) => name.toUpperCase())
+        );
         
         cachedMeshes.forEach(mesh => {
-            if (getNormalizedPartName(mesh.name) === targetPartName) {
+            const meshPartName = getNormalizedPartName(mesh.name, modelId);
+            if (linkedPartSet.has(meshPartName.toUpperCase())) {
                 const material = mesh.material as THREE.MeshStandardMaterial;
                 if (material && material.color) {
                     material.color.set(color);
-                    
-                    const upperName = targetPartName.toUpperCase();
-                    
-                    let categoryBParts: string[] = [];
-                    if (modelId === 'traveler') {
-                        categoryBParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
-                    } else if (modelId === 'lace') {
-                        categoryBParts = ['TONGUE', 'OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
-                    } else {
-                        categoryBParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
+
+                    if (material.userData.shaderUniforms?.uSmartColorEnabled && !mesh.userData.appliedColorUrl) {
+                        material.userData.shaderUniforms.uSmartColorEnabled.value = 1.0;
                     }
 
-                    if (categoryBParts.includes(upperName)) {
+                    if (isCategoryBPart(meshPartName, modelId)) {
+                        const origMat = Array.isArray(mesh.userData.originalMaterial)
+                            ? mesh.userData.originalMaterial[0]
+                            : mesh.userData.originalMaterial;
                         let changed = false;
-                        if (material.map !== null) { 
-                    if (material.map !== origMat.map) material.map.dispose(); 
-                    material.map = null; 
-                    changed = true; 
-                }
+                        if (material.map !== null) {
+                            if (origMat && material.map !== origMat.map && !mesh.userData.appliedColorUrl) {
+                                material.map.dispose();
+                            }
+                            material.map = null;
+                            changed = true;
+                        }
                         if (material.aoMap !== null) { material.aoMap = null; changed = true; }
                         if (material.lightMap !== null) { material.lightMap = null; changed = true; }
                         if (material.emissiveMap !== null) { material.emissiveMap = null; changed = true; }
@@ -614,12 +597,12 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
     };
     window.addEventListener('preview-part-color', handlePreviewColor);
     return () => window.removeEventListener('preview-part-color', handlePreviewColor);
-  }, [cachedMeshes]);
+  }, [cachedMeshes, modelId]);
 
   useEffect(() => {
     cachedMeshes.forEach(mesh => {
-      const partName = getNormalizedPartName(mesh.name);
-      const partKey = `${modelId}_${partName}`;
+      const partName = getNormalizedPartName(mesh.name, modelId);
+      const partKey = getPartStorageKey(modelId, partName);
       const config = textureMap[partKey];
       if (config) {
         const material = mesh.material as THREE.MeshStandardMaterial;
@@ -766,18 +749,8 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
             }
             mesh.userData.currentTextureComboKey = null;
             
-            const upperName = getNormalizedPartName(mesh.name).toUpperCase();
-            
-            let categoryBParts: string[] = [];
-            if (modelId === 'traveler') {
-                categoryBParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
-            } else if (modelId === 'lace') {
-                categoryBParts = ['TONGUE', 'OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
-            } else {
-                categoryBParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY'];
-            }
-            
-            const isCategoryB = categoryBParts.includes(upperName);
+            const normalizedPartName = getNormalizedPartName(mesh.name, modelId);
+            const isCategoryB = isCategoryBPart(normalizedPartName, modelId);
             
             if (isCategoryB) {
                 let changed = false;
@@ -1023,12 +996,15 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                 
                 if (!interactiveFlag) { onPartSelect(null); return; }
                 
-                // 使用標準化的部位名稱以更新 UI
-                const normalizedPartName = getNormalizedPartName(mesh.name);
+                // 使用標準化的部位名稱以更新 UI（依鞋款獨立解析）
+                const normalizedPartName = getNormalizedPartName(mesh.name, modelId);
+                const linkedPartSet = new Set(
+                    getLinkedColorParts(normalizedPartName, modelId).map((name) => name.toUpperCase())
+                );
 
-                // 使所有同名部位一起發光
+                // 使同鞋款所有同名及連動部位一起發光
                 cachedMeshes.forEach(m => {
-                    if (getNormalizedPartName(m.name) === normalizedPartName) {
+                    if (linkedPartSet.has(getNormalizedPartName(m.name, modelId).toUpperCase())) {
                         m.userData.glowEnergy = 1.0;
                     }
                 });
@@ -1286,6 +1262,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
         {wireframeUrl && transitionState === 'loading' && (
             <LoadingWireframeOverlay 
                 url={wireframeUrl} 
+                colorModelUrl={url}
                 scale={modelScale} 
                 rotation={modelRotation} 
                 position={modelPosition} 

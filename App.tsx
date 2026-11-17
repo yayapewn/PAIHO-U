@@ -7,6 +7,7 @@ import { TextureItem, SelectedPart, TextureConfig } from './types';
 import { MODELS, GENERAL_TEXTURES, TRAVELER_VAMP_TEXTURES } from './data';
 import { useAppStore } from './store';
 import { textureCacheManager } from './services/textureCacheManager';
+import { getPartStorageKey, isPartLibrarySupported, getLinkedColorParts } from './services/partConfig';
 
 const ENABLE_DEV_TOOLS = false;
 
@@ -48,19 +49,10 @@ const App: React.FC = () => {
     setLibraries({ materials: currentMaterials });
   }, [currentMaterials, setLibraries]);
 
-  const isLibrarySupported = (partName: string) => {
-    if (!partName) return false;
-    const name = partName.toUpperCase();
-    let disabledParts: string[] = [];
-    if (currentModel.id === 'traveler') {
-      disabledParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY', 'OUTSOLE'];
-    } else if (currentModel.id === 'lace') {
-      disabledParts = ['TONGUE', 'OBJECT011', 'MIDSOLE', 'LINE048', 'OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY', 'OUTSOLE'];
-    } else {
-      disabledParts = ['OBJECT011', 'MIDSOLE', 'LINE048', 'OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'TONGUE REINFORCEMENT', 'HEEL COLLAR REINFORCEMENT', 'EYELET', 'HEEL STRAP', 'QUARTER OVERLAY', 'OUTSOLE'];
-    }
-    return !disabledParts.includes(name);
-  };
+  const isLibrarySupported = useCallback(
+    (partName: string) => isPartLibrarySupported(partName, currentModel.id),
+    [currentModel.id]
+  );
 
   // 網頁載入時立即在背景預熱快取所有材質縮圖至瀏覽器快取池，確保使用者點選部位時瞬間呈現
   useEffect(() => {
@@ -77,7 +69,7 @@ const App: React.FC = () => {
   // 當使用者選取部位時，背景非同步預載該部位的 3D 材質（延遲 120ms 避免搶佔 UI 面板縮圖渲染頻寬）
   useEffect(() => {
     if (selectedPart && isLibrarySupported(selectedPart.name)) {
-      const activePartKey = `${currentModel.id}_${selectedPart.name}`;
+      const activePartKey = getPartStorageKey(currentModel.id, selectedPart.name);
       const activeConfig = partTextures[activePartKey];
       const timer = setTimeout(() => {
         textureCacheManager.preloadPartTextures(
@@ -88,7 +80,7 @@ const App: React.FC = () => {
       }, 120);
       return () => clearTimeout(timer);
     }
-  }, [selectedPart, currentMaterials, currentModel.id, partTextures]);
+  }, [selectedPart, currentMaterials, currentModel.id, partTextures, isLibrarySupported]);
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -116,6 +108,8 @@ const App: React.FC = () => {
     // 切換模型時釋放未引用的貼圖快取，重置任務隊列以維持記憶體健康
     textureCacheManager.onModelSwitch();
     setIsModelReady(false);
+    setIsPickingColor(false);
+    setIsPanelVisible(false);
     setActiveModelIndex(index);
     setEnvRotation(MODELS[index].initialEnvRotation);
     setSelectedPart(null);
@@ -126,7 +120,7 @@ const App: React.FC = () => {
   const applyTexture = (texture: TextureItem) => {
     if (!selectedPart || !isLibrarySupported(selectedPart.name)) return;
     setActiveTexture(texture);
-    const partKey = `${currentModel.id}_${selectedPart.name}`;
+    const partKey = getPartStorageKey(currentModel.id, selectedPart.name);
     
     const devKey = `${partKey}_${texture.id}`;
     const savedConfig = devConfigs[devKey];
@@ -151,10 +145,18 @@ const App: React.FC = () => {
 
   const updateTextureConfig = (key: keyof TextureConfig, value: any) => {
     if (!selectedPart) return;
-    const partKey = `${currentModel.id}_${selectedPart.name}`;
+    const targetParts = key === 'color'
+      ? getLinkedColorParts(selectedPart.name, currentModel.id)
+      : [selectedPart.name];
+
     setPartTextures(prev => {
-        const config = prev[partKey] || { url: '', normalUrl: '', scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 };
-        return { ...prev, [partKey]: { ...config, [key]: value } };
+      const next = { ...prev };
+      targetParts.forEach(partName => {
+        const pKey = getPartStorageKey(currentModel.id, partName);
+        const config = next[pKey] || { url: '', normalUrl: '', scale: 2.5, offsetX: 0, offsetY: 0, rotation: 0, roughness: 1, metalness: 0, opacity: 1 };
+        next[pKey] = { ...config, [key]: value };
+      });
+      return next;
     });
   };
 
@@ -169,7 +171,7 @@ const App: React.FC = () => {
     }, 500);
   };
 
-  const currentTextureConfig = selectedPart ? partTextures[`${currentModel.id}_${selectedPart.name}`] : null;
+  const currentTextureConfig = selectedPart ? partTextures[getPartStorageKey(currentModel.id, selectedPart.name)] : null;
   const currentColorHex = (currentTextureConfig?.color || '#ffffff').toUpperCase();
 
   const mappedTextureMap = useMemo(() => {
@@ -185,7 +187,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (selectedPart) {
       setIsPanelVisible(true);
-      const partKey = `${currentModel.id}_${selectedPart.name}`;
+      const partKey = getPartStorageKey(currentModel.id, selectedPart.name);
       const currentUrl = partTextures[partKey]?.url;
       if (currentUrl) {
           const match = libraries.materials.find(t => t.url === currentUrl);
@@ -194,7 +196,7 @@ const App: React.FC = () => {
           setActiveTexture(null);
       }
     }
-  }, [selectedPart, partTextures, libraries, setActiveTexture]);
+  }, [selectedPart, currentModel.id, partTextures, libraries, setActiveTexture]);
 
   const asideClasses = useMemo(() => {
     const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible pb-[env(safe-area-inset-bottom)]";
@@ -577,7 +579,7 @@ const App: React.FC = () => {
                                       onChange={(hex) => updateTextureConfig('color', hex)}
                                       onLiveChange={(hex) => {
                                           window.dispatchEvent(new CustomEvent('preview-part-color', {
-                                              detail: { partId: selectedPart.id, color: hex }
+                                              detail: { partId: selectedPart.id, partName: selectedPart.name, modelId: currentModel.id, color: hex }
                                           }));
                                       }}
                                       isPickingColor={isPickingColor}

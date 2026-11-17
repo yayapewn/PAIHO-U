@@ -25,12 +25,12 @@ export const MODELS = [
   },
   { 
     id: 'dna', 
-    name: 'D.N.A-shoe', 
-    url: null,
-    wireframeUrl: null,
-    scale: 2,
+    name: 'DNA-shoe', 
+    url: 'https://huggingface.co/yayapewn/huggingface/resolve/main/DNA_shoe.glb?v=20261116_01',
+    wireframeUrl: 'https://huggingface.co/yayapewn/huggingface/resolve/main/DNA_shoe-wire_compressed.glb?v=20261116_01',
+    scale: 1.8,
     rotation: [0, Math.PI, 0] as [number, number, number],
-    position: [0, 0, 0] as [number, number, number],
+    position: [0, 0.035, 0] as [number, number, number],
     initialEnvRotation: 280
   }
 ];
