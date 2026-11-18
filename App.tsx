@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { RotateCw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, MousePointer2, Smartphone, Monitor, Code, Save, Copy, Trash2, Share2, ArrowUpRight, Grid, Palette } from 'lucide-react';
+import { RotateCw, ChevronRight, ChevronLeft, MousePointer2, Smartphone, Monitor, Share2, ArrowUpRight, Grid, Palette } from 'lucide-react';
 import ModelViewer from './components/ModelViewer';
 import { ProColorPicker } from './components/ProColorPicker';
 import { ShareModal } from './components/ShareModal';
+import { DevUvTool } from './components/DevUvTool';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
-import { MODELS, GENERAL_TEXTURES, TRAVELER_VAMP_TEXTURES } from './data';
+import { MODELS, TRAVELER_VAMP_TEXTURES } from './data';
 import { useAppStore } from './store';
 import { textureCacheManager } from './services/textureCacheManager';
 import { getPartStorageKey, isPartLibrarySupported, getLinkedColorParts } from './services/partConfig';
@@ -54,10 +55,9 @@ const App: React.FC = () => {
     [currentModel.id]
   );
 
-  // 網頁載入時立即在背景預熱快取所有材質縮圖至瀏覽器快取池，確保使用者點選部位時瞬間呈現
+  // 網頁載入時立即在背景預熱快取所有可用材質縮圖至瀏覽器快取池，確保使用者點選部位時瞬間呈現
   useEffect(() => {
-    const allTextures = [...GENERAL_TEXTURES, ...TRAVELER_VAMP_TEXTURES];
-    allTextures.forEach(item => {
+    TRAVELER_VAMP_TEXTURES.forEach(item => {
       const src = item.thumbnail || item.url;
       if (src) {
         const img = new Image();
@@ -66,21 +66,23 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const activeSelectedPartUrl = selectedPart
+    ? partTextures[getPartStorageKey(currentModel.id, selectedPart.name)]?.url
+    : undefined;
+
   // 當使用者選取部位時，背景非同步預載該部位的 3D 材質（延遲 120ms 避免搶佔 UI 面板縮圖渲染頻寬）
   useEffect(() => {
     if (selectedPart && isLibrarySupported(selectedPart.name)) {
-      const activePartKey = getPartStorageKey(currentModel.id, selectedPart.name);
-      const activeConfig = partTextures[activePartKey];
       const timer = setTimeout(() => {
         textureCacheManager.preloadPartTextures(
           currentMaterials,
           selectedPart.name,
-          activeConfig?.url
+          activeSelectedPartUrl
         );
       }, 120);
       return () => clearTimeout(timer);
     }
-  }, [selectedPart, currentMaterials, currentModel.id, partTextures, isLibrarySupported]);
+  }, [selectedPart, currentMaterials, activeSelectedPartUrl, isLibrarySupported]);
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -326,119 +328,23 @@ const App: React.FC = () => {
              onColorPicked={handleColorPicked}
            />
 
-           {ENABLE_DEV_TOOLS && selectedPart && activeTexture && (
-               <div className="hidden xl:block absolute left-6 top-32 w-72 bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl shadow-xl p-5 z-50 animate-in fade-in slide-in-from-left-4">
-                   <div className="flex items-center justify-between mb-4">
-                       <h3 className="text-[11px] font-black tracking-widest text-gray-900 uppercase flex items-center gap-1.5"><Code size={14}/> Dev UV Tool</h3>
-                       <span className="text-[9px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200">DEV MODE</span>
-                   </div>
-
-                   <div className="mb-4">
-                       <h4 className="text-[9px] font-bold text-gray-400 mb-2 uppercase tracking-wider">Saved Textures ({selectedPart.name})</h4>
-                       <div className="flex flex-wrap gap-1.5">
-                           {Object.values(devConfigs)
-                               .filter((c: any) => c.partKey === `${currentModel.id}_${selectedPart.name}`)
-                               .map((c: any) => (
-                                   <span key={c.textureId} className="text-[9px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md border border-gray-200">
-                                       {c.textureName || c.textureId}
-                                   </span>
-                               ))}
-                           {Object.values(devConfigs).filter((c: any) => c.partKey === `${currentModel.id}_${selectedPart.name}`).length === 0 && (
-                               <span className="text-[9px] text-gray-400 font-medium">No saved textures for this part.</span>
-                           )}
-                       </div>
-                   </div>
-                   
-                   <div className="space-y-4 mb-5">
-                       {activeTexture && (
-                           <>
-                               <div>
-                                   <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
-                                       <span>SCALE (縮放)</span>
-                                       <span className="text-gray-900">{partTextures[`${currentModel.id}_${selectedPart.name}`]?.scale.toFixed(2) || '2.50'}</span>
-                                   </div>
-                                   <input type="range" min="0.1" max="10" step="0.05" value={partTextures[`${currentModel.id}_${selectedPart.name}`]?.scale || 2.5} onChange={(e) => updateTextureConfig('scale', parseFloat(e.target.value))} className="w-full accent-gray-900 h-[2px] bg-gray-200 rounded-full appearance-none cursor-pointer" />
-                               </div>
-                               <div>
-                                   <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
-                                       <span>OFFSET X (水平偏移)</span>
-                                       <span className="text-gray-900">{partTextures[`${currentModel.id}_${selectedPart.name}`]?.offsetX.toFixed(2) || '0.00'}</span>
-                                   </div>
-                                   <input type="range" min="-2" max="2" step="0.01" value={partTextures[`${currentModel.id}_${selectedPart.name}`]?.offsetX || 0} onChange={(e) => updateTextureConfig('offsetX', parseFloat(e.target.value))} className="w-full accent-gray-900 h-[2px] bg-gray-200 rounded-full appearance-none cursor-pointer" />
-                               </div>
-                               <div>
-                                   <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
-                                       <span>OFFSET Y (垂直偏移)</span>
-                                       <span className="text-gray-900">{partTextures[`${currentModel.id}_${selectedPart.name}`]?.offsetY.toFixed(2) || '0.00'}</span>
-                                   </div>
-                                   <input type="range" min="-2" max="2" step="0.01" value={partTextures[`${currentModel.id}_${selectedPart.name}`]?.offsetY || 0} onChange={(e) => updateTextureConfig('offsetY', parseFloat(e.target.value))} className="w-full accent-gray-900 h-[2px] bg-gray-200 rounded-full appearance-none cursor-pointer" />
-                               </div>
-                           </>
-                       )}
-                   </div>
-                   <div className="space-y-2">
-                       <button 
-                           onClick={(e) => {
-                               e.stopPropagation();
-                               const partKey = `${currentModel.id}_${selectedPart.name}`;
-                               const devKey = `${partKey}_${activeTexture.id}`;
-                               const conf = partTextures[partKey];
-                               if(conf) {
-                                   setDevConfigs(prev => ({
-                                       ...prev, 
-                                       [devKey]: {
-                                           partKey: partKey,
-                                           textureId: activeTexture.id,
-                                           textureName: activeTexture.name,
-                                           colorUrl: activeTexture?.url || '',
-                                           normalUrl: activeTexture?.normalUrl || '',
-                                           scale: conf.scale,
-                                           offsetX: conf.offsetX,
-                                           offsetY: conf.offsetY,
-                                           originalRoughness: conf.originalRoughness
-                                       }
-                                   }));
-                                   setToast("Saved to LocalStorage!");
-                                   setTimeout(() => setToast(null), 2000);
-                               }
-                           }}
-                           className="w-full bg-gray-100 text-gray-800 border border-gray-200 font-bold text-[11px] py-2.5 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-1.5 transition-colors pointer-events-auto shadow-sm"
-                       >
-                           <Save size={14} /> 暫存此貼圖設定
-                       </button>
-                       
-                       <button 
-                           onClick={(e) => {
-                               e.stopPropagation();
-                               const partKey = `${currentModel.id}_${selectedPart.name}`;
-                               const configArray = Object.values(devConfigs).filter((c: any) => c.partKey === partKey);
-                               if(configArray.length === 0) {
-                                   setToast("此部位沒有暫存任何資料");
-                                   setTimeout(() => setToast(null), 2000);
-                                   return;
-                               }
-                               const jsonStr = JSON.stringify(configArray, null, 2);
-                               navigator.clipboard.writeText(jsonStr);
-                               setToast(`已複製 ${selectedPart.name} 的參數 !`);
-                               setTimeout(() => setToast(null), 2000);
-                           }}
-                           className="w-full bg-gray-900 text-white font-bold text-[11px] py-2.5 rounded-lg hover:bg-black flex items-center justify-center gap-1.5 transition-colors shadow-md pointer-events-auto"
-                       >
-                           <Copy size={14} /> 匯出此部位所有暫存 (JSON)
-                       </button>
-                       <button 
-                           onClick={(e) => {
-                               e.stopPropagation();
-                               clearDevConfigs();
-                               setToast("已清空所有暫存");
-                               setTimeout(() => setToast(null), 2000);
-                           }}
-                           className="w-full bg-red-50/50 text-red-500 font-bold text-[11px] py-2 rounded-lg hover:bg-red-50 flex items-center justify-center gap-1.5 transition-colors mt-2 pointer-events-auto"
-                       >
-                           <Trash2 size={13} /> 清空所有暫存
-                       </button>
-                   </div>
-               </div>
+           {ENABLE_DEV_TOOLS && (selectedPart || Object.keys(devConfigs).length > 0) && (
+               <DevUvTool
+                   modelId={currentModel.id}
+                   modelName={currentModel.name}
+                   selectedPart={selectedPart}
+                   activeTexture={activeTexture}
+                   materials={currentMaterials}
+                   currentTextureConfig={currentTextureConfig}
+                   partTextures={partTextures}
+                   devConfigs={devConfigs}
+                   setDevConfigs={setDevConfigs}
+                   clearDevConfigs={clearDevConfigs}
+                   setPartTextures={setPartTextures}
+                   setActiveTexture={setActiveTexture}
+                   updateTextureConfig={updateTextureConfig}
+                   setToast={setToast}
+               />
            )}
 
            {isModelReady && !showSelectPrompt && (

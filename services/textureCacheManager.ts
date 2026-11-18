@@ -331,6 +331,21 @@ class TextureCacheManager {
   }
 
   /**
+   * 徹底清空預載佇列與貼圖快取（僅在確定解除 Mesh 綁定後呼叫）
+   */
+  public clearCache(): void {
+    this.preloadQueue = [];
+    this.currentActivePart = null;
+    for (const entry of this.cache.values()) {
+      entry.refCount = 0;
+      entry.pinned = false;
+      entry.texture.dispose();
+    }
+    this.cache.clear();
+    this.totalMemoryBytes = 0;
+  }
+
+  /**
    * 判斷某貼圖是否已存在快取中
    */
   public has(url: string): boolean {

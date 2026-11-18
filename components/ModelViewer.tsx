@@ -100,7 +100,7 @@ const ScreenshotHandler = React.forwardRef<any, any>((props, ref) => {
                      
                      const renderTarget = new THREE.WebGLRenderTarget(renderW, renderH, {
                          format: THREE.RGBAFormat,
-                         colorSpace: gl.outputColorSpace, // Match current color space (SRGBColorSpace)
+                         colorSpace: gl.outputColorSpace as THREE.ColorSpace, // Match current color space (SRGBColorSpace)
                          type: THREE.UnsignedByteType
                      });
                      
@@ -354,7 +354,7 @@ const LoadingWireframeMesh = ({ url, colorModelUrl, scale, rotation, position, a
     }, [scene]);
 
     return (
-        <group position={position} pointerEvents="none">
+        <group position={position}>
             <group ref={meshRef}>
                 <Center>
                     <primitive object={scene} scale={scale} />
@@ -688,15 +688,21 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                         mesh.userData.appliedNormalUrl = null;
                     }
 
-                    // 套用 Color 貼圖
+                    // 套用 Color 貼圖（使用獨立 clone 以免共用同一貼圖時 UV repeat/offset 互相蓋掉）
+                    if (mesh.userData.clonedColorTex) {
+                        mesh.userData.clonedColorTex.dispose();
+                        mesh.userData.clonedColorTex = null;
+                    }
                     if (hasColorMap && colorTexture) {
-                        colorTexture.repeat.set(config.scale, config.scale);
-                        colorTexture.offset.set(config.offsetX, config.offsetY);
-                        colorTexture.rotation = (config.rotation * Math.PI) / 180;
-                        colorTexture.center.set(0.5, 0.5);
-                        colorTexture.needsUpdate = true;
+                        const appliedColorTex = colorTexture.clone();
+                        appliedColorTex.repeat.set(config.scale, config.scale);
+                        appliedColorTex.offset.set(config.offsetX, config.offsetY);
+                        appliedColorTex.rotation = (config.rotation * Math.PI) / 180;
+                        appliedColorTex.center.set(0.5, 0.5);
+                        appliedColorTex.needsUpdate = true;
                         
-                        material.map = colorTexture;
+                        mesh.userData.clonedColorTex = appliedColorTex;
+                        material.map = appliedColorTex;
                         if (mesh.userData.appliedColorUrl !== config.url) {
                             textureCacheManager.retainTexture(config.url);
                             mesh.userData.appliedColorUrl = config.url;
@@ -706,14 +712,20 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                     }
 
                     // 套用 Normal 貼圖
+                    if (mesh.userData.clonedNormalTex) {
+                        mesh.userData.clonedNormalTex.dispose();
+                        mesh.userData.clonedNormalTex = null;
+                    }
                     if (hasNormalMap && normalTexture) {
-                        normalTexture.repeat.set(config.scale, config.scale);
-                        normalTexture.offset.set(config.offsetX, config.offsetY);
-                        normalTexture.rotation = (config.rotation * Math.PI) / 180;
-                        normalTexture.center.set(0.5, 0.5);
-                        normalTexture.needsUpdate = true;
+                        const appliedNormalTex = normalTexture.clone();
+                        appliedNormalTex.repeat.set(config.scale, config.scale);
+                        appliedNormalTex.offset.set(config.offsetX, config.offsetY);
+                        appliedNormalTex.rotation = (config.rotation * Math.PI) / 180;
+                        appliedNormalTex.center.set(0.5, 0.5);
+                        appliedNormalTex.needsUpdate = true;
 
-                        material.normalMap = normalTexture;
+                        mesh.userData.clonedNormalTex = appliedNormalTex;
+                        material.normalMap = appliedNormalTex;
                         if (mesh.userData.appliedNormalUrl !== config.normalUrl) {
                             textureCacheManager.retainTexture(config.normalUrl);
                             mesh.userData.appliedNormalUrl = config.normalUrl;
@@ -738,7 +750,15 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                 }
             }
         } else {
-            // 無貼圖要求：釋放已套用的貼圖引用
+            // 無貼圖要求：釋放已套用的貼圖引用與獨立 clone
+            if (mesh.userData.clonedColorTex) {
+                mesh.userData.clonedColorTex.dispose();
+                mesh.userData.clonedColorTex = null;
+            }
+            if (mesh.userData.clonedNormalTex) {
+                mesh.userData.clonedNormalTex.dispose();
+                mesh.userData.clonedNormalTex = null;
+            }
             if (mesh.userData.appliedColorUrl) {
                 textureCacheManager.releaseTexture(mesh.userData.appliedColorUrl);
                 mesh.userData.appliedColorUrl = null;
@@ -796,7 +816,15 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
             }
         }
       } else {
-        // config 為空：釋放先前可能引用的貼圖
+        // config 為空：釋放先前可能引用的貼圖與獨立 clone
+        if (mesh.userData.clonedColorTex) {
+            mesh.userData.clonedColorTex.dispose();
+            mesh.userData.clonedColorTex = null;
+        }
+        if (mesh.userData.clonedNormalTex) {
+            mesh.userData.clonedNormalTex.dispose();
+            mesh.userData.clonedNormalTex = null;
+        }
         if (mesh.userData.appliedColorUrl) {
             textureCacheManager.releaseTexture(mesh.userData.appliedColorUrl);
             mesh.userData.appliedColorUrl = null;
@@ -875,6 +903,14 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
 
     return () => {
       cachedMeshes.forEach(mesh => {
+        if (mesh.userData.clonedColorTex) {
+          mesh.userData.clonedColorTex.dispose();
+          mesh.userData.clonedColorTex = null;
+        }
+        if (mesh.userData.clonedNormalTex) {
+          mesh.userData.clonedNormalTex.dispose();
+          mesh.userData.clonedNormalTex = null;
+        }
         if (mesh.userData.appliedColorUrl) {
           textureCacheManager.releaseTexture(mesh.userData.appliedColorUrl);
           mesh.userData.appliedColorUrl = null;
@@ -946,12 +982,12 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                         // 1. 如果有貼圖且未染色，嘗試讀取貼圖的該像素顏色 (未受光影影響的原始色)
                         try {
                             const canvas = document.createElement('canvas');
-                            const img = standardMat.map.image;
-                            canvas.width = img.width || img.videoWidth || 1024;
-                            canvas.height = img.height || img.videoHeight || 1024;
+                            const img = standardMat.map.image as HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | ImageBitmap;
+                            canvas.width = ('videoWidth' in img ? img.videoWidth : img.width) || 1024;
+                            canvas.height = ('videoHeight' in img ? img.videoHeight : img.height) || 1024;
                             const ctx = canvas.getContext('2d', { willReadFrequently: true });
                             if (ctx) {
-                                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                ctx.drawImage(img as CanvasImageSource, 0, 0, canvas.width, canvas.height);
                                 
                                 // 套用材質的 UV 轉換矩陣 (處理 offset, repeat, rotation)
                                 const uv = e.uv.clone();

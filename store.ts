@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
-import { GENERAL_TEXTURES, MODELS } from './data';
+import { TRAVELER_VAMP_TEXTURES, MODELS } from './data';
 
 interface AppState {
   // Dev Configs
@@ -44,8 +43,18 @@ interface AppState {
   setToast: (toast: string | null) => void;
 }
 
+const readInitialDevConfigs = (): Record<string, any> => {
+  try {
+    const raw = localStorage.getItem('paiho_dev_configs');
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    localStorage.removeItem('paiho_dev_configs');
+    return {};
+  }
+};
+
 export const useAppStore = create<AppState>()((set) => ({
-  devConfigs: JSON.parse(localStorage.getItem('paiho_dev_configs') || '{}'),
+  devConfigs: readInitialDevConfigs(),
   setDevConfigs: (updater) => set((state) => {
     const nextConfigs = updater(state.devConfigs);
     localStorage.setItem('paiho_dev_configs', JSON.stringify(nextConfigs));
@@ -59,7 +68,7 @@ export const useAppStore = create<AppState>()((set) => ({
   activeModelIndex: 0,
   setActiveModelIndex: (index) => set({ activeModelIndex: index }),
   
-  libraries: { materials: GENERAL_TEXTURES },
+  libraries: { materials: TRAVELER_VAMP_TEXTURES },
   setLibraries: (libs) => set({ libraries: libs }),
   
   selectedPart: null,
