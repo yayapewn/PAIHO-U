@@ -1,4 +1,5 @@
 import { ColorMode, formatColorBadge, formatColorSpecLabel } from './colorUtils';
+import paihoLogoUrl from '../assets/paiho-logo.png';
 
 export type BackdropId = 'white' | 'concrete' | 'obsidian';
 
@@ -280,7 +281,7 @@ export const composeShareSheet = async ({
   const preset = STUDIO_BACKDROPS[backdropId] || STUDIO_BACKDROPS.white;
   const [img, logoImg] = await Promise.all([
     loadImageSafe(baseImageUrl),
-    loadImageSafe('/assets/paiho-logo.png'),
+    loadImageSafe(paihoLogoUrl),
   ]);
   if (!img) return baseImageUrl;
 
@@ -418,7 +419,7 @@ export const composeMaterialSpecSheet = async ({
   );
 
   const [logoImg, heroImg, ...thumbImages] = await Promise.all([
-    loadImageSafe('/assets/paiho-logo.png'),
+    loadImageSafe(paihoLogoUrl),
     loadImageSafe(heroImageUrl),
     ...uniqueThumbUrls.map((url) => loadImageSafe(url, true)),
   ]);

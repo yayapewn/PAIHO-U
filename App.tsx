@@ -10,6 +10,7 @@ import { useAppStore } from './store';
 import { textureCacheManager } from './services/textureCacheManager';
 import { getPartStorageKey, isPartLibrarySupported, getLinkedColorParts } from './services/partConfig';
 import { BackdropId, STUDIO_BACKDROPS, ShareSpecItem } from './services/shareComposer';
+import paihoLogoUrl from './assets/paiho-logo.png';
 
 const ENABLE_DEV_TOOLS = false;
 
@@ -355,7 +356,7 @@ const App: React.FC = () => {
           title="PAIHO Official Website"
           className="hidden md:flex absolute top-8 left-12 z-[50] h-[46px] items-center select-none cursor-pointer transition-opacity hover:opacity-80"
         >
-          <img src="/assets/paiho-logo.png" alt="PAIHO" className="h-[22px] w-auto object-contain" />
+          <img src={paihoLogoUrl} alt="PAIHO" className="h-[22px] w-auto object-contain" />
         </a>
 
         <nav className="absolute top-0 md:top-8 left-0 md:left-1/2 md:-translate-x-1/2 z-[50] flex w-full md:w-auto items-center justify-between md:justify-center p-2 pt-[max(env(safe-area-inset-top),0.5rem)] md:pt-2 bg-white/95 md:bg-transparent border-b border-gray-200/50">
