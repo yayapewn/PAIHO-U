@@ -255,7 +255,7 @@ const computePartSurfaceAreas = (shoeRoot: THREE.Object3D, modelId?: string): Re
 const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: number; modelId?: string }>(({ contrast, sharpness, modelId }, ref) => {
     const { gl, scene, camera } = useThree();
     React.useImperativeHandle(ref, () => ({
-        captureComposition: async (options?: { backdropHex?: string }) => {
+        captureComposition: async (options?: { backdropHex?: string; transparent?: boolean }) => {
             return new Promise<CaptureCompositionResult>((resolve) => {
                 const perspCam = camera as THREE.PerspectiveCamera;
                 const originalPosition = camera.position.clone();
@@ -273,7 +273,8 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                 let backdropCompositePass: ShaderPass | null = null;
 
                 try {
-                    const bgHex = options?.backdropHex || '#ffffff';
+                    const isTransparent = Boolean(options?.transparent);
+                    const bgHex = options?.backdropHex || '#F4F5F7';
                     const totalWidth = 2560;
                     const halfWidth = totalWidth / 2;
                     const halfHeight = 720;
@@ -324,6 +325,7 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                     backdropCompositePass.renderToScreen = false;
                     backdropCompositePass.material.blending = THREE.NoBlending;
                     backdropCompositePass.uniforms.uBgColor.value.copy(hexToSrgbVec3(bgHex));
+                    backdropCompositePass.uniforms.uPreserveAlpha.value = isTransparent ? 1.0 : 0.0;
 
                     byteTarget = new THREE.WebGLRenderTarget(initW, initH, {
                         format: THREE.RGBAFormat,
@@ -331,6 +333,15 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                     });
 
                     const shoeRoot = scene.getObjectByName('shoe-bounds-root') || scene;
+                    shoeRoot.traverse((obj: any) => {
+                        if (obj.isMesh && obj.userData?.glowEnergy) {
+                            obj.userData.glowEnergy = 0;
+                            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                            mats.forEach((m: any) => {
+                                if (m && 'emissiveIntensity' in m) m.emissiveIntensity = 0;
+                            });
+                        }
+                    });
                     const shoePoints = sampleShoeWorldPoints(shoeRoot);
                     const shoeCenter = computeShoeCenter(shoePoints);
                     const partAreas = computePartSurfaceAreas(shoeRoot, modelId);
@@ -480,8 +491,10 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                     canvas.height = compactTotalHeight;
                     const ctx = canvas.getContext('2d');
                     if (!ctx) { resolve({ sheetUrl: '', heroUrl: '', partAreas: {} }); return; }
-                    ctx.fillStyle = bgHex;
-                    ctx.fillRect(0, 0, totalWidth, compactTotalHeight);
+                    if (!isTransparent) {
+                        ctx.fillStyle = bgHex;
+                        ctx.fillRect(0, 0, totalWidth, compactTotalHeight);
+                    }
 
                     const drawRow = (slots: RenderedViewSlot[], cropTop: number, cropH: number, destY: number) => {
                         const sy = Math.round(cropTop * supersample);
@@ -505,8 +518,10 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                                 heroCanvas.height = cropH;
                                 const heroCtx = heroCanvas.getContext('2d');
                                 if (heroCtx) {
-                                    heroCtx.fillStyle = bgHex;
-                                    heroCtx.fillRect(0, 0, slot.view.w, cropH);
+                                    if (!isTransparent) {
+                                        heroCtx.fillStyle = bgHex;
+                                        heroCtx.fillRect(0, 0, slot.view.w, cropH);
+                                    }
                                     heroCtx.drawImage(
                                         slot.unflippedCanvas,
                                         0,
@@ -1417,6 +1432,7 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
   }, [cachedMeshes, modelId]);
 
   useFrame((state, delta) => {
+    const clampedDelta = Math.min(delta, 0.05);
     for (let i = 0; i < cachedMeshes.length; i++) {
         const mesh = cachedMeshes[i];
         const energy = mesh.userData.glowEnergy;
@@ -1424,13 +1440,24 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
 
         const material = mesh.material as THREE.MeshStandardMaterial;
         if (material && 'emissive' in material) {
-            const nextEnergy = THREE.MathUtils.lerp(energy, 0, Math.min(1, delta * 2.0));
+            const nextEnergy = Math.max(0, energy - clampedDelta * 0.68);
             if (nextEnergy <= 0.001) {
                 mesh.userData.glowEnergy = 0;
                 material.emissiveIntensity = 0;
             } else {
                 mesh.userData.glowEnergy = nextEnergy;
-                material.emissiveIntensity = Math.sin(nextEnergy * Math.PI) * 0.1;
+                material.emissive.setHex(0xffffff);
+                const t = 1 - nextEnergy;
+                let intensity = 0;
+                if (t < 0.08) {
+                    intensity = 0.55 + (t / 0.08) * 0.30;
+                } else if (t < 0.42) {
+                    intensity = 0.85 - ((t - 0.08) / 0.34) * 0.15;
+                } else {
+                    const fade = (t - 0.42) / 0.58;
+                    intensity = Math.pow(1 - fade, 1.5) * 0.70;
+                }
+                material.emissiveIntensity = intensity;
             }
         } else {
             mesh.userData.glowEnergy = 0;
@@ -1874,6 +1901,7 @@ const BackdropCompositeShader = {
   uniforms: {
     tDiffuse: { value: null },
     uBgColor: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
+    uPreserveAlpha: { value: 0.0 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -1885,10 +1913,20 @@ const BackdropCompositeShader = {
   fragmentShader: `
     uniform sampler2D tDiffuse;
     uniform vec3 uBgColor;
+    uniform float uPreserveAlpha;
     varying vec2 vUv;
 
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
+      if (uPreserveAlpha > 0.5) {
+        if (c.a <= 0.001) {
+          gl_FragColor = vec4(0.0);
+        } else {
+          vec3 straight = clamp(c.rgb / c.a, 0.0, 1.0);
+          gl_FragColor = vec4(straight, c.a);
+        }
+        return;
+      }
       vec3 composited = clamp(c.rgb + uBgColor * (1.0 - c.a), 0.0, 1.0);
       gl_FragColor = vec4(composited, 1.0);
     }
@@ -2412,7 +2450,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
   }, [transitionState, onModelReady, modelId]);
 
   React.useImperativeHandle(ref, () => ({
-      captureComposition: (options?: { backdropHex?: string }) =>
+      captureComposition: (options?: { backdropHex?: string; transparent?: boolean }) =>
         screenshotHandlerRef.current?.captureComposition(options) || Promise.resolve({ sheetUrl: '', heroUrl: '', partAreas: {} })
   }));
 

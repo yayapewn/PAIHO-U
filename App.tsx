@@ -9,8 +9,9 @@ import { MODELS, TRAVELER_VAMP_TEXTURES, DEFAULT_HDRI_URL } from './data';
 import { useAppStore } from './store';
 import { textureCacheManager } from './services/textureCacheManager';
 import { getPartStorageKey, isPartLibrarySupported, getLinkedColorParts } from './services/partConfig';
-import { BackdropId, STUDIO_BACKDROPS, ShareSpecItem } from './services/shareComposer';
+import { ShareSpecItem } from './services/shareComposer';
 import paihoLogoUrl from './assets/paiho-logo.png';
+import paihoSocialLogoUrl from './assets/paiho-logo-social.png';
 
 const ENABLE_DEV_TOOLS = false;
 
@@ -39,8 +40,6 @@ const App: React.FC = () => {
   const [heroScreenshotUrl, setHeroScreenshotUrl] = useState<string | null>(null);
   const [partAreas, setPartAreas] = useState<Record<string, number>>({});
   const [isGeneratingScreenshot, setIsGeneratingScreenshot] = useState(false);
-  const [isUpdatingBackdrop, setIsUpdatingBackdrop] = useState(false);
-  const [shareBackdrop, setShareBackdrop] = useState<BackdropId>('white');
   const [designerSignature, setDesignerSignature] = useState<string>('');
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [orientationError, setOrientationError] = useState<'mobile-portrait' | 'tablet-landscape' | null>(null);
@@ -218,29 +217,13 @@ const App: React.FC = () => {
     setIsShareModalOpen(true);
     setIsGeneratingScreenshot(true);
     setTimeout(async () => {
-        const bgHex = STUDIO_BACKDROPS[shareBackdrop].bgHex;
         const result: CaptureCompositionResult | undefined =
-          await modelViewerRef.current?.captureComposition({ backdropHex: bgHex });
+          await modelViewerRef.current?.captureComposition({ transparent: true });
         setScreenshotUrl(result?.sheetUrl || null);
         setHeroScreenshotUrl(result?.heroUrl || null);
         setPartAreas(result?.partAreas || {});
         setIsGeneratingScreenshot(false);
     }, 500);
-  };
-
-  const handleBackdropChange = (nextBackdrop: BackdropId) => {
-    if (nextBackdrop === shareBackdrop || isUpdatingBackdrop) return;
-    setShareBackdrop(nextBackdrop);
-    setIsUpdatingBackdrop(true);
-    setTimeout(async () => {
-      const bgHex = STUDIO_BACKDROPS[nextBackdrop].bgHex;
-      const result: CaptureCompositionResult | undefined =
-        await modelViewerRef.current?.captureComposition({ backdropHex: bgHex });
-      if (result?.sheetUrl) setScreenshotUrl(result.sheetUrl);
-      if (result?.heroUrl) setHeroScreenshotUrl(result.heroUrl);
-      if (result?.partAreas) setPartAreas(result.partAreas);
-      setIsUpdatingBackdrop(false);
-    }, 30);
   };
 
   const currentTextureConfig = selectedPart ? partTextures[getPartStorageKey(currentModel.id, selectedPart.name)] : null;
@@ -359,22 +342,34 @@ const App: React.FC = () => {
           <img src={paihoLogoUrl} alt="PAIHO" className="h-[22px] w-auto object-contain" />
         </a>
 
-        <nav className="absolute top-0 md:top-8 left-0 md:left-1/2 md:-translate-x-1/2 z-[50] flex w-full md:w-auto items-center justify-between md:justify-center p-2 pt-[max(env(safe-area-inset-top),0.5rem)] md:pt-2 bg-white/95 md:bg-transparent border-b border-gray-200/50">
+        <nav className="absolute top-0 md:top-8 left-0 md:left-1/2 md:-translate-x-1/2 z-[50] flex w-full md:w-auto items-center justify-between md:justify-center px-5 sm:px-8 py-2 md:p-2 pt-[max(env(safe-area-inset-top),0.5rem)] md:pt-2 bg-white/95 md:bg-transparent border-b border-gray-200/50">
+          <a
+            href="https://www.paiho.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title="PAIHO Official Website"
+            className="md:hidden shrink-0 w-[26px] flex items-center justify-start py-1 select-none cursor-pointer transition-opacity hover:opacity-80"
+          >
+            <img src={paihoSocialLogoUrl} alt="PAIHO" className="h-[26px] w-[26px] object-contain -translate-y-[2px]" />
+          </a>
+          <div className="flex flex-1 md:flex-none items-center justify-between md:justify-center max-w-[255px] sm:max-w-[330px] md:max-w-none mx-1.5 sm:mx-4 md:mx-0 md:gap-0 min-w-0">
             {MODELS.map((model, idx) => (
-            <button
-              key={model.id}
-              onClick={() => handleModelSwitch(idx)}
-              className={`px-1 md:px-6 py-3 md:py-2 flex-1 md:flex-none text-[9px] md:text-[10px] uppercase tracking-[0.1em] md:tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'font-bold text-gray-900' : 'font-medium text-gray-400 hover:text-gray-600'} whitespace-nowrap`}
-            >
-              {model.name}
-              {activeModelIndex === idx && (
-                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-[1px] bg-gray-900"></div>
-              )}
-            </button>
-          ))}
+              <button
+                key={model.id}
+                onClick={() => handleModelSwitch(idx)}
+                className={`px-0 sm:px-1 md:px-6 py-3 md:py-2 text-[9px] md:text-[10px] uppercase tracking-[0.06em] sm:tracking-[0.08em] md:tracking-[0.2em] transition-all duration-300 relative ${activeModelIndex === idx ? 'font-bold text-gray-900' : 'font-medium text-gray-400 hover:text-gray-600'} whitespace-nowrap`}
+              >
+                {model.name}
+                {activeModelIndex === idx && (
+                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-[1px] bg-gray-900"></div>
+                )}
+              </button>
+            ))}
+          </div>
           <button
             onClick={(e) => { e.stopPropagation(); setAutoRotate(!autoRotate); }}
-            className={`px-3 md:ml-4 p-2 transition-all duration-300 ${autoRotate ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`w-[26px] md:w-auto flex items-center justify-end md:justify-center py-2 md:px-3 md:ml-4 md:p-2 shrink-0 transition-all duration-300 ${autoRotate ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
             title="Toggle Auto Rotate"
           >
             <RotateCw size={14} className={autoRotate ? 'animate-spin' : ''} style={{ animationDuration: '3s' }} />
@@ -616,13 +611,10 @@ const App: React.FC = () => {
         isOpen={isShareModalOpen} 
         onClose={() => setIsShareModalOpen(false)} 
         isGeneratingScreenshot={isGeneratingScreenshot} 
-        isUpdatingBackdrop={isUpdatingBackdrop}
         screenshotUrl={screenshotUrl} 
         heroScreenshotUrl={heroScreenshotUrl}
         modelName={currentModel.name}
         specItems={shareSpecItems}
-        backdrop={shareBackdrop}
-        onBackdropChange={handleBackdropChange}
         colorMode={colorMode}
         onColorModeChange={setColorMode}
         signature={designerSignature}

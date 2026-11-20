@@ -30,13 +30,13 @@ export const STUDIO_BACKDROPS: Record<BackdropId, StudioBackdropPreset> = {
   concrete: {
     id: 'concrete',
     label: 'Cool Concrete',
-    bgHex: '#ECEEF2',
-    cardBgHex: '#E2E5EB',
+    bgHex: '#F4F5F7',
+    cardBgHex: '#EAECEF',
     textHex: '#111827',
     mutedHex: '#4B5563',
     accentHex: '#4F46E5',
-    borderHex: '#D1D5DB',
-    swatchHex: '#E5E7EB',
+    borderHex: '#DCDFE6',
+    swatchHex: '#ECEEF2',
   },
   obsidian: {
     id: 'obsidian',
@@ -70,7 +70,7 @@ export interface ColorDnaSlice {
 
 interface ComposeShareSheetOptions {
   baseImageUrl: string;
-  backdropId: BackdropId;
+  backdropId?: BackdropId;
   modelName: string;
   specItems: ShareSpecItem[];
   signature: string;
@@ -79,7 +79,7 @@ interface ComposeShareSheetOptions {
 
 interface ComposeMaterialSpecOptions {
   heroImageUrl: string;
-  backdropId: BackdropId;
+  backdropId?: BackdropId;
   modelName: string;
   specItems: ShareSpecItem[];
   signature: string;
@@ -268,9 +268,48 @@ const drawProportionalColorBar = (
   });
 };
 
+const drawDraftingGrid = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  step = 40,
+  majorEvery = 5,
+  minorColor = 'rgba(17, 24, 39, 0.042)',
+  majorColor = 'rgba(17, 24, 39, 0.075)'
+) => {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, width, height);
+  ctx.clip();
+
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i * step <= width; i++) {
+    const gx = x + i * step + 0.5;
+    ctx.strokeStyle = i % majorEvery === 0 ? majorColor : minorColor;
+    ctx.beginPath();
+    ctx.moveTo(gx, y);
+    ctx.lineTo(gx, y + height);
+    ctx.stroke();
+  }
+
+  for (let j = 0; j * step <= height; j++) {
+    const gy = y + j * step + 0.5;
+    ctx.strokeStyle = j % majorEvery === 0 ? majorColor : minorColor;
+    ctx.beginPath();
+    ctx.moveTo(x, gy);
+    ctx.lineTo(x + width, gy);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+};
+
 export const composeShareSheet = async ({
   baseImageUrl,
-  backdropId,
+  backdropId = 'concrete',
   modelName,
   specItems,
   signature,
@@ -278,7 +317,7 @@ export const composeShareSheet = async ({
 }: ComposeShareSheetOptions): Promise<string> => {
   if (!baseImageUrl) return '';
 
-  const preset = STUDIO_BACKDROPS[backdropId] || STUDIO_BACKDROPS.white;
+  const preset = STUDIO_BACKDROPS[backdropId] || STUDIO_BACKDROPS.concrete;
   const [img, logoImg] = await Promise.all([
     loadImageSafe(baseImageUrl),
     loadImageSafe(paihoLogoUrl),
@@ -303,9 +342,10 @@ export const composeShareSheet = async ({
   const ctx = canvas.getContext('2d');
   if (!ctx) return baseImageUrl;
 
-  // 1. 填滿攝影棚背景並繪製 5 視角合成圖
+  // 1. 填滿淡灰色攝影棚底色並鋪上設計稿細格紋，再合成透明背景五視角渲染圖
   ctx.fillStyle = preset.bgHex;
   ctx.fillRect(0, 0, width, totalHeight);
+  drawDraftingGrid(ctx, 0, 0, width, totalHeight, 40, 5, 'rgba(17, 24, 39, 0.035)', 'rgba(17, 24, 39, 0.065)');
   ctx.drawImage(img, 0, 0, width, baseHeight);
 
   const barY = baseHeight + (hasDna ? 12 : 10);
@@ -403,13 +443,13 @@ export const composeShareSheet = async ({
 
 export const composeMaterialSpecSheet = async ({
   heroImageUrl,
-  backdropId,
+  backdropId = 'concrete',
   modelName,
   specItems,
   signature,
   colorMode = 'HEX',
 }: ComposeMaterialSpecOptions): Promise<string> => {
-  const preset = STUDIO_BACKDROPS[backdropId] || STUDIO_BACKDROPS.white;
+  const preset = STUDIO_BACKDROPS[backdropId] || STUDIO_BACKDROPS.concrete;
 
   const sortedItems = [...specItems].sort((a, b) => b.area - a.area);
   const slices = computeColorDna(sortedItems);
@@ -455,6 +495,7 @@ export const composeMaterialSpecSheet = async ({
 
   ctx.fillStyle = preset.bgHex;
   ctx.fillRect(0, 0, width, totalHeight);
+  drawDraftingGrid(ctx, 0, 0, width, totalHeight, 40, 5, 'rgba(17, 24, 39, 0.028)', 'rgba(17, 24, 39, 0.052)');
 
   // 1. 頁首：PAIHO Logo + 標題 + 鞋型署名
   ctx.textBaseline = 'middle';
@@ -700,82 +741,4 @@ export const composeMaterialSpecSheet = async ({
   return canvas.toDataURL('image/png', 0.92);
 };
 
-export interface EmailSummaryData {
-  designer: string;
-  backdropLabel: string;
-  paletteChips: Array<{ hex: string; code: string; percentage: number }>;
-  partRows: Array<{ partName: string; materialTitle?: string; colorCode: string; hex: string }>;
-}
-
-export const buildEmailSummaryData = ({
-  backdropId,
-  specItems,
-  signature,
-  colorMode = 'HEX',
-}: {
-  backdropId: BackdropId;
-  specItems: ShareSpecItem[];
-  signature: string;
-  colorMode?: ColorMode;
-}): EmailSummaryData => {
-  const preset = STUDIO_BACKDROPS[backdropId] || STUDIO_BACKDROPS.white;
-  const hasCustomColors = specItems.some((item) => item.hasCustomColor);
-  const slices = hasCustomColors ? computeColorDna(specItems) : [];
-
-  const paletteChips = slices.map((slice) => ({
-    hex: slice.hex,
-    code: formatColorBadge(slice.hex, colorMode),
-    percentage: slice.percentage,
-  }));
-
-  const sortedParts = [...specItems].sort((a, b) => b.area - a.area);
-  const partRows = sortedParts.map((item) => ({
-    partName: item.partName,
-    materialTitle: item.materialTitle,
-    colorCode: formatColorBadge(item.hex, colorMode),
-    hex: item.hex,
-  }));
-
-  return {
-    designer: signature.trim() || 'PAIHO-U Studio',
-    backdropLabel: preset.label,
-    paletteChips,
-    partRows,
-  };
-};
-
-export const prepareEmailAttachmentBase64 = async (
-  imageDataUrl: string,
-  maxWidth = 1800,
-  quality = 0.88
-): Promise<{ base64: string; ext: 'jpg' | 'png' }> => {
-  const img = await loadImageSafe(imageDataUrl);
-  if (!img || img.naturalWidth === 0 || img.naturalHeight === 0) {
-    const raw = imageDataUrl.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
-    return { base64: raw, ext: 'png' };
-  }
-
-  const scale = Math.min(1, maxWidth / img.naturalWidth);
-  const targetW = Math.max(1, Math.round(img.naturalWidth * scale));
-  const targetH = Math.max(1, Math.round(img.naturalHeight * scale));
-
-  const canvas = document.createElement('canvas');
-  canvas.width = targetW;
-  canvas.height = targetH;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    const raw = imageDataUrl.replace(/^data:image\/[a-zA-Z+]+;base64,/, '');
-    return { base64: raw, ext: 'png' };
-  }
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, targetW, targetH);
-  ctx.drawImage(img, 0, 0, targetW, targetH);
-
-  const jpegUrl = canvas.toDataURL('image/jpeg', quality);
-  return {
-    base64: jpegUrl.replace(/^data:image\/jpeg;base64,/, ''),
-    ext: 'jpg',
-  };
-};
 
