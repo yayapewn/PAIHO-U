@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
 import { TRAVELER_VAMP_TEXTURES, MODELS } from './data';
+import { ColorMode } from './services/colorUtils';
 
 interface AppState {
   // Dev Configs
@@ -17,6 +18,8 @@ interface AppState {
   setSelectedPart: (part: SelectedPart | null) => void;
   activeTexture: TextureItem | null;
   setActiveTexture: (texture: TextureItem | null) => void;
+  colorMode: ColorMode;
+  setColorMode: (mode: ColorMode) => void;
   
   // Environment
   envIntensity: number;
@@ -77,7 +80,10 @@ export const useAppStore = create<AppState>()((set) => ({
   activeTexture: null,
   setActiveTexture: (texture) => set({ activeTexture: texture }),
 
-  envIntensity: 1.5,
+  colorMode: 'HEX',
+  setColorMode: (colorMode) => set({ colorMode }),
+
+  envIntensity: MODELS[0].initialEnvIntensity,
   setEnvIntensity: (intensity) => set({ envIntensity: intensity }),
   
   envRotation: MODELS[0].initialEnvRotation,

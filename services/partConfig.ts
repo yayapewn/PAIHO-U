@@ -12,6 +12,7 @@ export interface ModelPartRule {
   smartInvertLabelParts: string[];
   smartDarkTextParts?: string[];
   smartChromaLogoParts?: string[];
+  smartKeepRedOnLightParts?: string[];
   linkedColorGroups?: string[][];
 }
 
@@ -78,9 +79,11 @@ export const MODEL_PART_RULES: Record<string, ModelPartRule> = {
       'HEEL STRAP',
       'QUARTER OVERLAY',
     ],
-    smartParts: ['OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'OUTSOLE'],
+    smartParts: ['OBJECT019', 'TONGUE LABEL', 'QUARTER LABEL', 'TONGUE PULL TAB', 'OUTSOLE'],
     smartInsoleParts: ['OBJECT019'],
-    smartInvertLabelParts: [],
+    smartInvertLabelParts: ['TONGUE PULL TAB', 'QUARTER LABEL', 'TONGUE LABEL'],
+    smartDarkTextParts: ['TONGUE PULL TAB', 'QUARTER LABEL', 'TONGUE LABEL'],
+    smartKeepRedOnLightParts: ['TONGUE PULL TAB', 'QUARTER LABEL', 'TONGUE LABEL'],
     linkedColorGroups: [
       ['Tongue Reinforcement', 'Heel Collar Reinforcement'],
     ],
@@ -407,6 +410,16 @@ export const isSmartChromaLogoPart = (partName: string, modelId?: ShoeModelId): 
 };
 
 /**
+ * 判斷第 4.2 種部位是否在淺底時保留原圖紅色並維持黑字，暗底時黑字與紅色一併反轉為純白（例如 Tongue Label）
+ */
+export const isSmartKeepRedOnLightPart = (partName: string, modelId?: ShoeModelId): boolean => {
+  if (!partName) return false;
+  const upperName = partName.toUpperCase();
+  const rule = getModelPartRule(modelId);
+  return (rule.smartKeepRedOnLightParts || []).includes(upperName);
+};
+
+/**
  * 取得與指定部位連動改色的所有標準化部位名稱清單（若無連動則僅回傳自身）
  */
 export const getLinkedColorParts = (partName: string, modelId?: ShoeModelId): string[] => {
@@ -418,3 +431,78 @@ export const getLinkedColorParts = (partName: string, modelId?: ShoeModelId): st
   );
   return matchedGroup ? [...matchedGroup] : [partName];
 };
+
+export interface PartFocusPreset {
+  /** 水平方位角（度）：0 = 鞋頭(+Z), +90 = 外側(+X), -90 = 內側(-X), 180 = 鞋跟(-Z) */
+  azimuthDeg: number;
+  /** 垂直俯仰角（度）：0 = 正上方(+Y), 90 = 水平, >90 = 由下往上檢視鞋底 */
+  polarDeg: number;
+  /** 桌面端基準攝影機距離（預設全景為 0.85） */
+  distance: number;
+  /** auto-side：依點擊側（外側/內側）自動鏡像方位角；fixed：固定使用指定方位角 */
+  sideMode?: 'auto-side' | 'fixed';
+  /** 注視點從鞋體中心向點擊網格中心偏移的權重 (0~1) */
+  targetWeight?: number;
+  /** 是否將目標精準置中於畫面中央（不偏移側欄避讓距離，並提高點擊處置中權重） */
+  exactCenter?: boolean;
+}
+
+const PART_FOCUS_PRESETS: Record<string, PartFocusPreset> = {
+  // 標籤與細部標誌（近距離、平視、置中檢視材質與字樣）
+  'QUARTER LABEL': { azimuthDeg: 88, polarDeg: 85, distance: 0.36, sideMode: 'auto-side', targetWeight: 1.0, exactCenter: true },
+  'TONGUE LABEL': { azimuthDeg: 60, polarDeg: 74, distance: 0.35, sideMode: 'fixed', targetWeight: 1.0, exactCenter: true },
+  'TONGUE PULL TAB': { azimuthDeg: 14, polarDeg: 68, distance: 0.44, sideMode: 'auto-side', targetWeight: 0.92, exactCenter: true },
+  'LABEL': { azimuthDeg: 88, polarDeg: 85, distance: 0.34, sideMode: 'fixed', targetWeight: 1.0, exactCenter: true },
+  'TONGUE REINFORCEMENT 2': { azimuthDeg: 16, polarDeg: 64, distance: 0.40, sideMode: 'auto-side', targetWeight: 1.0, exactCenter: true },
+  'FOREFOOT REINFORCEMENT': { azimuthDeg: 82, polarDeg: 86, distance: 0.42, sideMode: 'auto-side', targetWeight: 1.0, exactCenter: true },
+  'CORD STOPPER': { azimuthDeg: 22, polarDeg: 68, distance: 0.38, sideMode: 'auto-side', targetWeight: 1.0, exactCenter: true },
+  'OBJECT011': { azimuthDeg: 46, polarDeg: 64, distance: 0.42, sideMode: 'auto-side', targetWeight: 0.9, exactCenter: true },
+
+  // 鞋舌與鞋帶系統（前上方 3/4 視角）
+  'TONGUE': { azimuthDeg: 28, polarDeg: 48, distance: 0.66, sideMode: 'auto-side', targetWeight: 0.65 },
+  'TONGUE REINFORCEMENT': { azimuthDeg: 52, polarDeg: 54, distance: 0.60, sideMode: 'auto-side', targetWeight: 0.68 },
+  'TONGUE REINFORCEMENT 1': { azimuthDeg: 34, polarDeg: 52, distance: 0.58, sideMode: 'auto-side', targetWeight: 0.72 },
+  'SHOELACE': { azimuthDeg: 34, polarDeg: 46, distance: 0.62, sideMode: 'auto-side', targetWeight: 0.65 },
+  'EYELET': { azimuthDeg: 56, polarDeg: 54, distance: 0.56, sideMode: 'auto-side', targetWeight: 0.70 },
+
+  // 鞋頭與前掌（前側 3/4 微俯視角）
+  'VAMP': { azimuthDeg: 50, polarDeg: 62, distance: 0.70, sideMode: 'auto-side', targetWeight: 0.55 },
+  'VAMP STRAP': { azimuthDeg: 44, polarDeg: 58, distance: 0.60, sideMode: 'auto-side', targetWeight: 0.70 },
+  'VAMP REINFORCEMENT': { azimuthDeg: 50, polarDeg: 64, distance: 0.64, sideMode: 'auto-side', targetWeight: 0.65 },
+
+  // 鞋腰與內外側支撐
+  'QUARTER': { azimuthDeg: 86, polarDeg: 74, distance: 0.76, sideMode: 'auto-side', targetWeight: 0.45 },
+  'QUARTER OVERLAY': { azimuthDeg: 80, polarDeg: 72, distance: 0.66, sideMode: 'auto-side', targetWeight: 0.62 },
+  'QUARTER REINFORCEMENT': { azimuthDeg: 86, polarDeg: 72, distance: 0.68, sideMode: 'auto-side', targetWeight: 0.60 },
+  'LATERAL LOOP': { azimuthDeg: 82, polarDeg: 72, distance: 0.54, sideMode: 'fixed', targetWeight: 0.75 },
+  'MEDIAL REINFORCEMENT': { azimuthDeg: -78, polarDeg: 74, distance: 0.64, sideMode: 'fixed', targetWeight: 0.68 },
+
+  // 鞋跟與鞋領（後側 3/4 視角）
+  'HEEL COUNTER': { azimuthDeg: 138, polarDeg: 76, distance: 0.68, sideMode: 'auto-side', targetWeight: 0.62 },
+  'HEEL STRAP': { azimuthDeg: 142, polarDeg: 72, distance: 0.60, sideMode: 'auto-side', targetWeight: 0.72 },
+  'HEEL PULL TAB': { azimuthDeg: 148, polarDeg: 62, distance: 0.56, sideMode: 'auto-side', targetWeight: 0.75 },
+  'PULL TAB': { azimuthDeg: 148, polarDeg: 62, distance: 0.56, sideMode: 'auto-side', targetWeight: 0.75 },
+  'STRAP TAB': { azimuthDeg: 136, polarDeg: 66, distance: 0.54, sideMode: 'auto-side', targetWeight: 0.75 },
+  'HEEL COLLAR REINFORCEMENT': { azimuthDeg: 126, polarDeg: 56, distance: 0.62, sideMode: 'auto-side', targetWeight: 0.68 },
+  'COLLAR': { azimuthDeg: 118, polarDeg: 54, distance: 0.64, sideMode: 'auto-side', targetWeight: 0.65 },
+
+  // 鞋內裡與鞋墊（高角度斜切入鞋口）
+  'OBJECT019': { azimuthDeg: 112, polarDeg: 32, distance: 0.68, sideMode: 'auto-side', targetWeight: 0.60 },
+  'INSOLE': { azimuthDeg: 112, polarDeg: 32, distance: 0.68, sideMode: 'auto-side', targetWeight: 0.60 },
+  'SOCKLINER': { azimuthDeg: 112, polarDeg: 32, distance: 0.66, sideMode: 'auto-side', targetWeight: 0.62 },
+  'INNER': { azimuthDeg: 108, polarDeg: 38, distance: 0.66, sideMode: 'auto-side', targetWeight: 0.62 },
+
+  // 中底、沿條與大底（低側面與仰視鞋底）
+  'MIDSOLE': { azimuthDeg: 86, polarDeg: 88, distance: 0.78, sideMode: 'auto-side', targetWeight: 0.45 },
+  'LINE048': { azimuthDeg: 74, polarDeg: 84, distance: 0.72, sideMode: 'auto-side', targetWeight: 0.52 },
+  'WELT': { azimuthDeg: 70, polarDeg: 80, distance: 0.72, sideMode: 'auto-side', targetWeight: 0.55 },
+  'OUTSOLE': { azimuthDeg: 76, polarDeg: 130, distance: 0.82, sideMode: 'auto-side', targetWeight: 0.40 },
+  'SHANK': { azimuthDeg: 88, polarDeg: 136, distance: 0.66, sideMode: 'auto-side', targetWeight: 0.72 },
+};
+
+export const getPartFocusPreset = (partName: string, _modelId?: ShoeModelId): PartFocusPreset | null => {
+  if (!partName) return null;
+  const upperName = partName.trim().toUpperCase();
+  return PART_FOCUS_PRESETS[upperName] || null;
+};
+

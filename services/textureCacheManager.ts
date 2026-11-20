@@ -145,6 +145,17 @@ class TextureCacheManager {
   }
 
   /**
+   * 同步取得已存在記憶體快取中的 Texture（命中時立即回傳，避免切換鞋款重掛載產生首幀閃爍）
+   */
+  public getCachedTexture(url?: string | null): THREE.Texture | null {
+    if (!url) return null;
+    const entry = this.cache.get(url);
+    if (!entry) return null;
+    entry.lastUsed = Date.now();
+    return entry.texture;
+  }
+
+  /**
    * 引用計數增加 (Mesh 套用時調用)
    */
   public retainTexture(url?: string | null): void {
@@ -316,12 +327,12 @@ class TextureCacheManager {
   }
 
   /**
-   * 模型切換時清理：釋放所有未被引用的舊模型貼圖，重置預載佇列
+   * 模型切換時清理：釋放未引用且非已保存配置中的舊模型貼圖，重置預載佇列
    */
-  public onModelSwitch(): void {
+  public onModelSwitch(keepUrls?: Set<string>): void {
     this.preloadQueue = [];
     const unreferenced = Array.from(this.cache.values()).filter(
-      (entry) => entry.refCount <= 0 && !entry.pinned
+      (entry) => entry.refCount <= 0 && !entry.pinned && !keepUrls?.has(entry.url)
     );
     for (const entry of unreferenced) {
       entry.texture.dispose();

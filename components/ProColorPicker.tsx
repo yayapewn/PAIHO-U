@@ -1,141 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Pipette } from 'lucide-react';
-
-// --- Color Conversion Helpers ---
-const hsvToRgb = (h: number, s: number, v: number) => {
-  s /= 100; v /= 100;
-  const i = Math.floor(h / 60);
-  const f = h / 60 - i;
-  const p = v * (1 - s);
-  const q = v * (1 - f * s);
-  const t = v * (1 - (1 - f) * s);
-  let r = 0, g = 0, b = 0;
-  switch (i % 6) {
-    case 0: r = v; g = t; b = p; break;
-    case 1: r = q; g = v; b = p; break;
-    case 2: r = p; g = v; b = t; break;
-    case 3: r = p; g = q; b = v; break;
-    case 4: r = t; g = p; b = v; break;
-    case 5: r = v; g = p; b = q; break;
-  }
-  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
-};
-
-const rgbToHex = (r: number, g: number, b: number) => {
-  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
-};
-
-const hexToRgb = (hex: string) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : { r: 255, g: 255, b: 255 };
-};
-
-const rgbToHsv = (r: number, g: number, b: number) => {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0, v = max;
-  const d = max - min;
-  s = max === 0 ? 0 : d / max;
-  if (max !== min) {
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
-  }
-  return { h: h * 360, s: s * 100, v: v * 100 };
-};
-
-const rgbToXyz = (r: number, g: number, b: number) => {
-  let [R, G, B] = [r / 255, g / 255, b / 255].map(v => v > 0.04045 ? Math.pow((v + 0.055) / 1.055, 2.4) : v / 12.92);
-  R *= 100; G *= 100; B *= 100;
-  return [R * 0.4124 + G * 0.3576 + B * 0.1805, R * 0.2126 + G * 0.7152 + B * 0.0722, R * 0.0193 + G * 0.1192 + B * 0.9505];
-};
-
-const xyzToLab = (x: number, y: number, z: number) => {
-  let [X, Y, Z] = [x / 95.047, y / 100.0, z / 108.883].map(v => v > 0.008856 ? Math.pow(v, 1/3) : (7.787 * v) + (16 / 116));
-  return [(116 * Y) - 16, 500 * (X - Y), 200 * (Y - Z)];
-};
-
-const rgbToLab = (r: number, g: number, b: number) => {
-  const [x, y, z] = rgbToXyz(r, g, b);
-  const [L, A, B] = xyzToLab(x, y, z);
-  return { l: Math.round(L), a: Math.round(A), b: Math.round(B) };
-};
-
-const labToXyz = (l: number, a: number, b: number) => {
-  let y = (l + 16) / 116;
-  let x = a / 500 + y;
-  let z = y - b / 200;
-  [x, y, z] = [x, y, z].map(v => Math.pow(v, 3) > 0.008856 ? Math.pow(v, 3) : (v - 16 / 116) / 7.787);
-  return [x * 95.047, y * 100.0, z * 108.883];
-};
-
-const xyzToRgb = (x: number, y: number, z: number) => {
-  let [X, Y, Z] = [x / 100, y / 100, z / 100];
-  let r = X * 3.2404542 + Y * -1.5371385 + Z * -0.4985314;
-  let g = X * -0.9692660 + Y * 1.8760108 + Z * 0.0415560;
-  let b = X * 0.0556434 + Y * -0.2040259 + Z * 1.0572252;
-  [r, g, b] = [r, g, b].map(v => v > 0.0031308 ? 1.055 * Math.pow(v, 1 / 2.4) - 0.055 : 12.92 * v);
-  return { 
-    r: Math.max(0, Math.min(255, Math.round(r * 255))), 
-    g: Math.max(0, Math.min(255, Math.round(g * 255))), 
-    b: Math.max(0, Math.min(255, Math.round(b * 255))) 
-  };
-};
-
-const labToRgb = (l: number, a: number, b: number) => {
-  const [x, y, z] = labToXyz(l, a, b);
-  return xyzToRgb(x, y, z);
-};
-
-const rgbToHsl = (r: number, g: number, b: number) => {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
-  }
-  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
-};
-
-const hslToRgb = (h: number, s: number, l: number) => {
-  let r, g, b;
-  h /= 360; s /= 100; l /= 100;
-  if (s === 0) {
-    r = g = b = l;
-  } else {
-    const hue2rgb = (p: number, q: number, t: number) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1/6) return p + (q - p) * 6 * t;
-      if (t < 1/2) return q;
-      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-      return p;
-    };
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1/3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1/3);
-  }
-  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
-};
+import {
+  ColorMode,
+  COLOR_MODES,
+  hsvToRgb,
+  rgbToHex,
+  parseHexInput,
+  hexToRgb,
+  rgbToHsv,
+  labToRgb,
+  hslToRgb,
+  formatColorValue,
+} from '../services/colorUtils';
+import { useAppStore } from '../store';
 
 export const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) => void, onLiveChange?: (hex: string) => void, isPickingColor: boolean, onTogglePick: () => void }> = ({ color, onChange, onLiveChange, isPickingColor, onTogglePick }) => {
   const [hsv, setHsv] = useState(() => rgbToHsv(hexToRgb(color).r, hexToRgb(color).g, hexToRgb(color).b));
   
-  type ColorMode = 'HEX' | 'RGB' | 'HSL' | 'LAB';
-  const [colorMode, setColorMode] = useState<ColorMode>('HEX');
-  const [inputText, setInputText] = useState(color);
+  const colorMode = useAppStore((s) => s.colorMode);
+  const setColorMode = useAppStore((s) => s.setColorMode);
+  const [inputText, setInputText] = useState(() => formatColorValue(color, colorMode));
   const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -151,39 +35,28 @@ export const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) =
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isModeDropdownOpen]);
 
-  const formatColorString = (hexString: string, mode: ColorMode) => {
-    const rgb = hexToRgb(hexString);
-    if (mode === 'HEX') return hexString.toUpperCase();
-    if (mode === 'RGB') return `${rgb.r}, ${rgb.g}, ${rgb.b}`;
-    if (mode === 'HSL') {
-      const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
-      return `${hsl.h}, ${hsl.s}%, ${hsl.l}%`;
-    }
-    if (mode === 'LAB') {
-      const lab = rgbToLab(rgb.r, rgb.g, rgb.b);
-      return `${lab.l}, ${lab.a}, ${lab.b}`;
-    }
-    return hexString;
-  };
-
   const colorRef = useRef(color);
   const hsvRef = useRef(hsv);
   const rafRef = useRef<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isInputFocusedRef = useRef(false);
 
   useEffect(() => {
-    setInputText(formatColorString(colorRef.current, colorMode));
+    setInputText(formatColorValue(colorRef.current, colorMode));
   }, [colorMode]);
 
   useEffect(() => {
     if (colorRef.current !== color) {
        colorRef.current = color;
-       setInputText(formatColorString(color, colorMode));
+       if (!isInputFocusedRef.current) {
+         setInputText(formatColorValue(color, colorMode));
+       }
        const newRgb = hexToRgb(color);
        const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
        setHsv(newHsv);
        hsvRef.current = newHsv;
     }
-  }, [color]);
+  }, [color, colorMode]);
 
   const updateHsv = (updates: Partial<{h:number, s:number, v:number}>, isCommit = false) => {
     const nextHsv = { ...hsvRef.current, ...updates };
@@ -193,7 +66,7 @@ export const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) =
     const newRgb = hsvToRgb(nextHsv.h, nextHsv.s, nextHsv.v);
     const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
     
-    setInputText(formatColorString(newHex, colorMode));
+    setInputText(formatColorValue(newHex, colorMode));
     
     if (newHex !== colorRef.current) {
         colorRef.current = newHex;
@@ -215,6 +88,7 @@ export const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) =
   const vRef = useRef<HTMLDivElement>(null);
 
   const handlePointerDownHS = (e: React.PointerEvent) => {
+    inputRef.current?.blur();
     if (!hsRef.current) return;
     const rect = hsRef.current.getBoundingClientRect();
     const update = (clientX: number, clientY: number, isCommit = false) => {
@@ -234,6 +108,7 @@ export const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) =
   };
 
   const handlePointerDownV = (e: React.PointerEvent) => {
+    inputRef.current?.blur();
     if (!vRef.current) return;
     const rect = vRef.current.getBoundingClientRect();
     const update = (clientY: number, isCommit = false) => {
@@ -301,7 +176,7 @@ export const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) =
                       
                       {isModeDropdownOpen && (
                           <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 bg-white border border-gray-200 shadow-lg rounded-[2px] overflow-hidden z-[100] min-w-[72px] animate-in fade-in zoom-in-95 duration-200">
-                              {(['HEX', 'RGB', 'HSL', 'LAB'] as ColorMode[]).map((mode) => (
+                              {COLOR_MODES.map((mode) => (
                                   <button
                                       key={mode}
                                       onClick={() => {
@@ -323,16 +198,41 @@ export const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) =
               </div>
               <div className="bg-gray-50 px-4 py-3 border border-gray-200 focus-within:border-indigo-600 transition-all flex items-center h-[52px] rounded-[2px]">
                   <input 
+                    ref={inputRef}
                     type="text" 
                     value={inputText}
+                    onFocus={() => {
+                      isInputFocusedRef.current = true;
+                    }}
+                    onBlur={() => {
+                      isInputFocusedRef.current = false;
+                      setInputText(formatColorValue(colorRef.current, colorMode));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setInputText(formatColorValue(colorRef.current, colorMode));
+                        e.currentTarget.blur();
+                      }
+                    }}
                     onChange={(e) => {
                         const val = e.target.value;
-                        setInputText(val);
+                        const inputType = (e.nativeEvent as InputEvent | undefined)?.inputType;
+                        let nextInputText = val;
                         
                         let hexValue = '';
                         try {
                           if (colorMode === 'HEX') {
-                            if (/^#[0-9A-Fa-f]{6}$/i.test(val)) hexValue = val.toUpperCase();
+                            const parsed = parseHexInput(val);
+                            if (parsed) {
+                              hexValue = parsed.hex;
+                              if (!parsed.isShort) {
+                                if (!parsed.hasHash || val !== val.trim()) {
+                                  nextInputText = parsed.hex;
+                                }
+                              } else if (inputType === 'insertFromPaste') {
+                                nextInputText = parsed.hex;
+                              }
+                            }
                           } else if (colorMode === 'RGB') {
                             const match = val.match(/^\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*$/);
                             if (match) {
@@ -362,7 +262,16 @@ export const ProColorPicker: React.FC<{ color: string, onChange: (hex: string) =
                           }
                         } catch(err) {}
 
+                        setInputText(nextInputText);
+
                         if (hexValue) {
+                            if (hexValue !== colorRef.current) {
+                                colorRef.current = hexValue;
+                                const newRgb = hexToRgb(hexValue);
+                                const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
+                                setHsv(newHsv);
+                                hsvRef.current = newHsv;
+                            }
                             if (onLiveChange) onLiveChange(hexValue);
                             onChange(hexValue);
                         }

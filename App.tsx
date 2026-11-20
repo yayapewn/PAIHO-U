@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { RotateCw, ChevronRight, ChevronLeft, MousePointer2, Smartphone, Monitor, Share2, ArrowUpRight, Grid, Palette } from 'lucide-react';
-import ModelViewer from './components/ModelViewer';
+import ModelViewer, { CaptureCompositionResult } from './components/ModelViewer';
 import { ProColorPicker } from './components/ProColorPicker';
 import { ShareModal } from './components/ShareModal';
 import { DevUvTool } from './components/DevUvTool';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
-import { MODELS, TRAVELER_VAMP_TEXTURES } from './data';
+import { MODELS, TRAVELER_VAMP_TEXTURES, DEFAULT_HDRI_URL } from './data';
 import { useAppStore } from './store';
 import { textureCacheManager } from './services/textureCacheManager';
 import { getPartStorageKey, isPartLibrarySupported, getLinkedColorParts } from './services/partConfig';
+import { BackdropId, STUDIO_BACKDROPS, ShareSpecItem } from './services/shareComposer';
 
 const ENABLE_DEV_TOOLS = false;
 
@@ -19,6 +20,7 @@ const App: React.FC = () => {
     libraries, setLibraries,
     selectedPart, setSelectedPart,
     activeTexture, setActiveTexture,
+    colorMode, setColorMode,
     envIntensity, setEnvIntensity,
     envRotation, setEnvRotation,
     autoRotate, setAutoRotate,
@@ -33,7 +35,12 @@ const App: React.FC = () => {
   const [isPickingColor, setIsPickingColor] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  const [heroScreenshotUrl, setHeroScreenshotUrl] = useState<string | null>(null);
+  const [partAreas, setPartAreas] = useState<Record<string, number>>({});
   const [isGeneratingScreenshot, setIsGeneratingScreenshot] = useState(false);
+  const [isUpdatingBackdrop, setIsUpdatingBackdrop] = useState(false);
+  const [shareBackdrop, setShareBackdrop] = useState<BackdropId>('white');
+  const [designerSignature, setDesignerSignature] = useState<string>('');
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [orientationError, setOrientationError] = useState<'mobile-portrait' | 'tablet-landscape' | null>(null);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
@@ -107,16 +114,21 @@ const App: React.FC = () => {
       setTimeout(() => setToast(null), 3000);
       return;
     }
-    // 切換模型時釋放未引用的貼圖快取，重置任務隊列以維持記憶體健康
-    textureCacheManager.onModelSwitch();
+    // 切換模型時保留各鞋型已套用貼圖，僅釋放未被引用的預載快取以維持記憶體健康
+    const keepUrls = new Set<string>();
+    Object.values(partTextures).forEach((cfg) => {
+      if (cfg?.url) keepUrls.add(cfg.url);
+      if (cfg?.normalUrl) keepUrls.add(cfg.normalUrl);
+    });
+    textureCacheManager.onModelSwitch(keepUrls);
     setIsModelReady(false);
     setIsPickingColor(false);
     setIsPanelVisible(false);
     setActiveModelIndex(index);
+    setEnvIntensity(MODELS[index].initialEnvIntensity);
     setEnvRotation(MODELS[index].initialEnvRotation);
     setSelectedPart(null);
     setActiveTexture(null);
-    setPartTextures(() => ({}));
   };
 
   const applyTexture = (texture: TextureItem) => {
@@ -129,12 +141,13 @@ const App: React.FC = () => {
     const defaultScale = savedConfig ? savedConfig.scale : 2.5;
     const defaultOffsetX = savedConfig ? savedConfig.offsetX : 0;
     const defaultOffsetY = savedConfig ? savedConfig.offsetY : 0;
+    const defaultRotation = savedConfig ? (savedConfig.rotation ?? 0) : 0;
 
     setPartTextures(prev => {
       const existing = prev[partKey];
       const inheritedColor = existing?.color || '#ffffff';
-      if (existing) return { ...prev, [partKey]: { ...existing, url: texture.url, normalUrl: texture.normalUrl, color: inheritedColor, scale: defaultScale, offsetX: defaultOffsetX, offsetY: defaultOffsetY } };
-      return { ...prev, [partKey]: { url: texture.url, normalUrl: texture.normalUrl, scale: defaultScale, offsetX: defaultOffsetX, offsetY: defaultOffsetY, rotation: 0, roughness: 1, metalness: 0, opacity: 1, color: inheritedColor } };
+      if (existing) return { ...prev, [partKey]: { ...existing, url: texture.url, normalUrl: texture.normalUrl, color: inheritedColor, scale: defaultScale, offsetX: defaultOffsetX, offsetY: defaultOffsetY, rotation: defaultRotation } };
+      return { ...prev, [partKey]: { url: texture.url, normalUrl: texture.normalUrl, scale: defaultScale, offsetX: defaultOffsetX, offsetY: defaultOffsetY, rotation: defaultRotation, roughness: 1, metalness: 0, opacity: 1, color: inheritedColor } };
     });
   };
 
@@ -162,15 +175,71 @@ const App: React.FC = () => {
     });
   };
 
+  const shareSpecItems = useMemo<ShareSpecItem[]>(() => {
+    const prefix = `${currentModel.id}_`;
+    const formatPartDisplay = (rawName: string) => {
+      const upper = rawName.toUpperCase();
+      if (upper === 'OBJECT019') return 'INSOLE';
+      if (upper === 'OBJECT011') return 'AGLET';
+      return upper;
+    };
+
+    const items: ShareSpecItem[] = [];
+    Object.entries(partTextures).forEach(([key, config]) => {
+      if (!key.startsWith(prefix) || !config) return;
+      const rawPart = key.slice(prefix.length);
+      const displayPart = formatPartDisplay(rawPart);
+      const hex = (config.color || '#ffffff').toUpperCase();
+      const hasTexture = Boolean(config.url);
+      const hasCustomColor = hex !== '#FFFFFF';
+      if (!hasTexture && !hasCustomColor) return;
+
+      const matchedMat = hasTexture
+        ? currentMaterials.find((item) => item.url === config.url)
+        : undefined;
+
+      items.push({
+        partName: displayPart,
+        materialTitle: matchedMat ? matchedMat.title || matchedMat.name : undefined,
+        materialDescription: matchedMat?.description,
+        materialImageUrl: matchedMat ? matchedMat.thumbnail || matchedMat.url : undefined,
+        hex,
+        hasCustomColor,
+        area: partAreas[displayPart] || 0,
+      });
+    });
+
+    return items;
+  }, [partTextures, currentModel.id, currentMaterials, partAreas]);
+
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsShareModalOpen(true);
     setIsGeneratingScreenshot(true);
     setTimeout(async () => {
-        const dataUrl = await modelViewerRef.current?.captureComposition();
-        setScreenshotUrl(dataUrl);
+        const bgHex = STUDIO_BACKDROPS[shareBackdrop].bgHex;
+        const result: CaptureCompositionResult | undefined =
+          await modelViewerRef.current?.captureComposition({ backdropHex: bgHex });
+        setScreenshotUrl(result?.sheetUrl || null);
+        setHeroScreenshotUrl(result?.heroUrl || null);
+        setPartAreas(result?.partAreas || {});
         setIsGeneratingScreenshot(false);
     }, 500);
+  };
+
+  const handleBackdropChange = (nextBackdrop: BackdropId) => {
+    if (nextBackdrop === shareBackdrop || isUpdatingBackdrop) return;
+    setShareBackdrop(nextBackdrop);
+    setIsUpdatingBackdrop(true);
+    setTimeout(async () => {
+      const bgHex = STUDIO_BACKDROPS[nextBackdrop].bgHex;
+      const result: CaptureCompositionResult | undefined =
+        await modelViewerRef.current?.captureComposition({ backdropHex: bgHex });
+      if (result?.sheetUrl) setScreenshotUrl(result.sheetUrl);
+      if (result?.heroUrl) setHeroScreenshotUrl(result.heroUrl);
+      if (result?.partAreas) setPartAreas(result.partAreas);
+      setIsUpdatingBackdrop(false);
+    }, 30);
   };
 
   const currentTextureConfig = selectedPart ? partTextures[getPartStorageKey(currentModel.id, selectedPart.name)] : null;
@@ -213,20 +282,19 @@ const App: React.FC = () => {
     return `${base} ${mobileState} ${desktopState}`;
   }, [selectedPart, isPanelVisible]);
 
-  const handleDownload = async (e: React.MouseEvent) => {
-      e.preventDefault();
-      if (!screenshotUrl) return;
+  const handleDownload = async (downloadUrl: string, filename = 'design-render.png') => {
+      if (!downloadUrl) return;
       if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
           try {
-              const res = await fetch(screenshotUrl);
+              const res = await fetch(downloadUrl);
               const blob = await res.blob();
-              const file = new File([blob], 'design-render.png', { type: 'image/png' });
+              const file = new File([blob], filename, { type: 'image/png' });
               
               if (navigator.canShare && navigator.canShare({ files: [file] })) {
                   await navigator.share({
                       files: [file],
                       title: 'The Masterpiece',
-                      text: 'Captured in Ultra High Definition',
+                      text: 'Studio Render · Multi-View Export',
                   });
                   return;
               }
@@ -236,8 +304,8 @@ const App: React.FC = () => {
       }
       
       const link = document.createElement('a');
-      link.href = screenshotUrl;
-      link.download = 'design-render.png';
+      link.href = downloadUrl;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -279,7 +347,18 @@ const App: React.FC = () => {
       )}
 
       <div className="relative flex-1">
-        <nav className="absolute top-0 md:top-8 left-0 md:left-1/2 md:-translate-x-1/2 z-[50] flex w-full md:w-auto items-center justify-between md:justify-center p-2 pt-[max(env(safe-area-inset-top),0.5rem)] md:pt-2 bg-white/80 md:bg-transparent backdrop-blur-md md:backdrop-blur-[2px] border-b border-gray-200/50">
+        <a
+          href="https://www.paiho.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title="PAIHO Official Website"
+          className="hidden md:flex absolute top-8 left-12 z-[50] h-[46px] items-center select-none cursor-pointer transition-opacity hover:opacity-80"
+        >
+          <img src="/assets/paiho-logo.png" alt="PAIHO" className="h-[22px] w-auto object-contain" />
+        </a>
+
+        <nav className="absolute top-0 md:top-8 left-0 md:left-1/2 md:-translate-x-1/2 z-[50] flex w-full md:w-auto items-center justify-between md:justify-center p-2 pt-[max(env(safe-area-inset-top),0.5rem)] md:pt-2 bg-white/95 md:bg-transparent border-b border-gray-200/50">
             {MODELS.map((model, idx) => (
             <button
               key={model.id}
@@ -317,12 +396,15 @@ const App: React.FC = () => {
              needsDemoRotation={!hasRotated}
              textureMap={mappedTextureMap} 
              activeTexture={activeTexture}
+             envFiles={DEFAULT_HDRI_URL}
              envPreset="studio" 
-             envIntensity={envIntensity / 10} 
+             envIntensity={envIntensity} 
              envRotation={envRotation} 
+             contrast={currentModel.contrast}
+             sharpness={currentModel.sharpness}
              dirLightRotation={104}
-             shadowBlur={0.25}
-             shadowNormalBias={0.4}
+             shadowBlur={4}
+             shadowNormalBias={0.01}
              autoRotate={autoRotate}
              isPickingColor={isPickingColor}
              onColorPicked={handleColorPicked}
@@ -377,13 +459,13 @@ const App: React.FC = () => {
            {isModelReady && showSelectPrompt && !hasClickedPart && !selectedPart && (
              <div className="absolute inset-0 flex items-end justify-center pb-[max(6rem,18dvh)] pointer-events-none animate-in fade-in duration-[350ms]">
                <div className="flex flex-col items-center gap-4">
-                  <div className="w-14 h-14 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-2xl border border-white animate-bounce">
+                  <div className="w-14 h-14 bg-white/95 rounded-full flex items-center justify-center shadow-2xl border border-white animate-bounce">
                     <MousePointer2 size={28} className="text-indigo-600" />
                   </div>
                   <span className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400 drop-shadow-sm">Select Part to customize</span>
                </div>
              </div>
-           )}
+            )}
         </main>
 
         <aside className={asideClasses} onClick={(e) => e.stopPropagation()}>
@@ -496,16 +578,16 @@ const App: React.FC = () => {
 
                             <section>
                                  <div className="flex flex-col gap-1.5 mb-5 px-1">
-                                    <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-900 leading-none">Atmosphere</h3>
+                                    <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-900 leading-none">LIGHTING</h3>
                                     <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
                                 </div>
-                                <div className="space-y-10 px-1">
+                                <div className="space-y-8 px-1">
                                     <div className="space-y-4">
                                         <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
                                             <span>INTENSITY</span>
-                                            <span className="text-indigo-600">{envIntensity.toFixed(1)}</span>
+                                            <span className="text-indigo-600">{envIntensity.toFixed(2)}</span>
                                         </div>
-                                        <input type="range" min="0" max="5" step="0.1" value={envIntensity} onChange={(e) => { e.stopPropagation(); setEnvIntensity(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
+                                        <input type="range" min="0" max="3" step="0.05" value={envIntensity} onChange={(e) => { e.stopPropagation(); setEnvIntensity(parseFloat(e.target.value)); }} className="w-full accent-indigo-600 h-[2px] bg-gray-200/80 rounded-full appearance-none cursor-pointer" />
                                     </div>
                                     <div className="space-y-4">
                                         <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-400">
@@ -533,7 +615,17 @@ const App: React.FC = () => {
         isOpen={isShareModalOpen} 
         onClose={() => setIsShareModalOpen(false)} 
         isGeneratingScreenshot={isGeneratingScreenshot} 
+        isUpdatingBackdrop={isUpdatingBackdrop}
         screenshotUrl={screenshotUrl} 
+        heroScreenshotUrl={heroScreenshotUrl}
+        modelName={currentModel.name}
+        specItems={shareSpecItems}
+        backdrop={shareBackdrop}
+        onBackdropChange={handleBackdropChange}
+        colorMode={colorMode}
+        onColorModeChange={setColorMode}
+        signature={designerSignature}
+        onSignatureChange={setDesignerSignature}
         onDownload={handleDownload} 
       />
     </div>

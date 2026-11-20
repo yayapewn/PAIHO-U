@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Code, Save, Copy, Trash2, RotateCcw, X } from 'lucide-react';
 import { SelectedPart, TextureConfig, TextureItem } from '../types';
-import { getLinkedColorParts, getPartStorageKey } from '../services/partConfig';
+import { getPartStorageKey } from '../services/partConfig';
 import { textureCacheManager } from '../services/textureCacheManager';
 
 interface DevUvToolProps {
@@ -97,7 +97,7 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
     if (totalSavedCount === 0) return null;
     return (
       <div
-        className="hidden lg:flex items-center gap-3 absolute left-6 top-28 xl:top-32 bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl shadow-xl px-4 py-3 z-50 animate-in fade-in slide-in-from-left-4"
+        className="hidden lg:flex items-center gap-3 absolute left-6 top-28 xl:top-32 bg-white/95 border border-gray-200 rounded-2xl shadow-xl px-4 py-3 z-50 animate-in fade-in slide-in-from-left-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 text-[11px] font-black tracking-wider text-gray-900 uppercase">
@@ -122,18 +122,21 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
   }
 
   const currentScale = currentTextureConfig?.scale ?? 2.5;
+  const currentRotation = currentTextureConfig?.rotation ?? 0;
   const currentOffsetX = currentTextureConfig?.offsetX ?? 0;
   const currentOffsetY = currentTextureConfig?.offsetY ?? 0;
 
   const activeSavedEntry = activeTexture ? devConfigs[`${partKey}_${activeTexture.id}`] : null;
   const isDefaultUv =
     Math.abs(currentScale - 2.5) < 0.001 &&
+    Math.abs(currentRotation) < 0.001 &&
     Math.abs(currentOffsetX) < 0.001 &&
     Math.abs(currentOffsetY) < 0.001;
 
   const isMatchesSaved =
     Boolean(activeSavedEntry) &&
     Math.abs(currentScale - activeSavedEntry.scale) < 0.001 &&
+    Math.abs(currentRotation - (activeSavedEntry.rotation ?? 0)) < 0.001 &&
     Math.abs(currentOffsetX - activeSavedEntry.offsetX) < 0.001 &&
     Math.abs(currentOffsetY - activeSavedEntry.offsetY) < 0.001;
 
@@ -165,7 +168,7 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
           scale: saved.scale ?? 2.5,
           offsetX: saved.offsetX ?? 0,
           offsetY: saved.offsetY ?? 0,
-          rotation: existing?.rotation ?? 0,
+          rotation: saved.rotation ?? 0,
           roughness: existing?.roughness ?? 1,
           metalness: existing?.metalness ?? 0,
           opacity: existing?.opacity ?? 1,
@@ -185,18 +188,23 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
     showToast(`已移除暫存：${label}`);
   };
 
-  const handleRestorePartMaterial = () => {
-    const linkedParts = getLinkedColorParts(selectedPart.name, modelId);
+  const handleResetUv = () => {
+    if (!currentTextureConfig) return;
     setPartTextures((prev) => {
-      const next = { ...prev };
-      linkedParts.forEach((pName) => {
-        delete next[getPartStorageKey(modelId, pName)];
-      });
-      delete next[partKey];
-      return next;
+      const existing = prev[partKey];
+      if (!existing) return prev;
+      return {
+        ...prev,
+        [partKey]: {
+          ...existing,
+          scale: 2.5,
+          rotation: 0,
+          offsetX: 0,
+          offsetY: 0,
+        },
+      };
     });
-    setActiveTexture(null);
-    showToast(`已還原 ${selectedPart.name} 原始貼圖與顏色`);
+    showToast('已重設 UV 參數為預設值');
   };
 
   const handleSaveCurrent = () => {
@@ -213,6 +221,7 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
         scale: currentTextureConfig.scale,
         offsetX: currentTextureConfig.offsetX,
         offsetY: currentTextureConfig.offsetY,
+        rotation: currentTextureConfig.rotation ?? 0,
         originalRoughness: currentTextureConfig.originalRoughness,
       },
     }));
@@ -221,7 +230,7 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
 
   return (
     <div
-      className="hidden lg:block absolute left-6 top-28 xl:top-32 w-80 max-h-[calc(100dvh-9rem)] overflow-y-auto no-scrollbar bg-white/95 backdrop-blur-md border border-gray-200 rounded-2xl shadow-xl p-5 z-50 animate-in fade-in slide-in-from-left-4"
+      className="hidden lg:block absolute left-6 top-28 xl:top-32 w-80 max-h-[calc(100dvh-9rem)] overflow-y-auto no-scrollbar bg-white/95 border border-gray-200 rounded-2xl shadow-xl p-5 z-50 animate-in fade-in slide-in-from-left-4"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between mb-1.5">
@@ -339,6 +348,17 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
 
       {activeTexture ? (
         <div className="space-y-3.5 mb-5">
+          {!isDefaultUv && (
+            <div className="flex justify-end -mb-1.5">
+              <button
+                onClick={handleResetUv}
+                className="inline-flex items-center gap-1 text-[9px] font-bold text-gray-500 hover:text-indigo-600 transition-colors cursor-pointer"
+                title="將 Scale、Rotation 與 Offset 重設為預設值"
+              >
+                <RotateCcw size={10} /> 重設 UV 數值
+              </button>
+            </div>
+          )}
           <div>
             <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
               <span>SCALE (縮放)</span>
@@ -351,6 +371,21 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
               step="0.05"
               value={currentScale}
               onChange={(e) => updateTextureConfig('scale', parseFloat(e.target.value))}
+              className="w-full accent-gray-900 h-[2px] bg-gray-200 rounded-full appearance-none cursor-pointer"
+            />
+          </div>
+          <div>
+            <div className="flex justify-between text-[10px] font-bold text-gray-500 mb-1">
+              <span>ROTATION (旋轉)</span>
+              <span className="text-gray-900 tabular-nums">{Math.round(currentRotation)}°</span>
+            </div>
+            <input
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              value={currentRotation}
+              onChange={(e) => updateTextureConfig('rotation', parseFloat(e.target.value))}
               className="w-full accent-gray-900 h-[2px] bg-gray-200 rounded-full appearance-none cursor-pointer"
             />
           </div>
@@ -399,15 +434,6 @@ export const DevUvTool: React.FC<DevUvToolProps> = ({
             className="w-full bg-indigo-600 text-white font-bold text-[11px] py-2.5 rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-1.5 transition-colors shadow-sm"
           >
             <Save size={14} /> 暫存此貼圖
-          </button>
-        )}
-
-        {currentTextureConfig && (
-          <button
-            onClick={handleRestorePartMaterial}
-            className="w-full bg-indigo-50 text-indigo-600 border border-indigo-100 font-bold text-[11px] py-2 rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <RotateCcw size={13} /> 還原此部位
           </button>
         )}
 

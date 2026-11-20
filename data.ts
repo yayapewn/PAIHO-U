@@ -2,6 +2,8 @@ import { TextureItem } from './types';
 
 export const UNIFORM_LINK = "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786";
 
+export const DEFAULT_HDRI_URL = "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_kontrast_03_1k.hdr";
+
 export const MODELS = [
   { 
     id: 'traveler', 
@@ -11,7 +13,10 @@ export const MODELS = [
     scale: 1.53, 
     rotation: [-0.3, Math.PI * 2.5, 0] as [number, number, number], 
     position: [0, 0.03, 0] as [number, number, number], 
-    initialEnvRotation: 280
+    initialEnvIntensity: 0.50,
+    initialEnvRotation: 202,
+    contrast: 1.14,
+    sharpness: 0.50
   },
   { 
     id: 'lace', 
@@ -21,7 +26,10 @@ export const MODELS = [
     scale: 2,
     rotation: [0, Math.PI, 0] as [number, number, number],
     position: [0, 0, 0] as [number, number, number],
-    initialEnvRotation: 280
+    initialEnvIntensity: 1.05,
+    initialEnvRotation: 280,
+    contrast: 1.16,
+    sharpness: 0.30
   },
   { 
     id: 'dna', 
@@ -31,7 +39,10 @@ export const MODELS = [
     scale: 1.8,
     rotation: [0, Math.PI, 0] as [number, number, number],
     position: [0, 0.035, 0] as [number, number, number],
-    initialEnvRotation: 280
+    initialEnvIntensity: 0.60,
+    initialEnvRotation: 207,
+    contrast: 1.14,
+    sharpness: 0.65
   }
 ];
 

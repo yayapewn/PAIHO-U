@@ -42,3 +42,5 @@ export interface SelectedPart {
   materialName: string;
   id: string; // UUID of the mesh
 }
+
+
