@@ -1,55 +1,16 @@
 import { ColorMode, formatColorBadge, formatColorSpecLabel } from './colorUtils';
 import paihoLogoUrl from '../assets/paiho-logo.png';
 
-export type BackdropId = 'white' | 'concrete' | 'obsidian';
+const STUDIO_BACKDROP = {
+  bgHex: '#F4F5F7',
+  cardBgHex: '#EAECEF',
+  textHex: '#111827',
+  mutedHex: '#4B5563',
+  accentHex: '#4F46E5',
+  borderHex: '#DCDFE6',
+} as const;
 
-export interface StudioBackdropPreset {
-  id: BackdropId;
-  label: string;
-  bgHex: string;
-  cardBgHex: string;
-  textHex: string;
-  mutedHex: string;
-  accentHex: string;
-  borderHex: string;
-  swatchHex: string;
-}
-
-export const STUDIO_BACKDROPS: Record<BackdropId, StudioBackdropPreset> = {
-  white: {
-    id: 'white',
-    label: 'Pure White',
-    bgHex: '#FFFFFF',
-    cardBgHex: '#F9FAFB',
-    textHex: '#111827',
-    mutedHex: '#6B7280',
-    accentHex: '#4F46E5',
-    borderHex: '#E5E7EB',
-    swatchHex: '#FFFFFF',
-  },
-  concrete: {
-    id: 'concrete',
-    label: 'Cool Concrete',
-    bgHex: '#F4F5F7',
-    cardBgHex: '#EAECEF',
-    textHex: '#111827',
-    mutedHex: '#4B5563',
-    accentHex: '#4F46E5',
-    borderHex: '#DCDFE6',
-    swatchHex: '#ECEEF2',
-  },
-  obsidian: {
-    id: 'obsidian',
-    label: 'Obsidian',
-    bgHex: '#14161A',
-    cardBgHex: '#1C2026',
-    textHex: '#F9FAFB',
-    mutedHex: '#9CA3AF',
-    accentHex: '#818CF8',
-    borderHex: '#2A2F3A',
-    swatchHex: '#14161A',
-  },
-};
+type StudioBackdropPreset = typeof STUDIO_BACKDROP;
 
 export interface ShareSpecItem {
   partName: string;
@@ -70,7 +31,6 @@ export interface ColorDnaSlice {
 
 interface ComposeShareSheetOptions {
   baseImageUrl: string;
-  backdropId?: BackdropId;
   modelName: string;
   specItems: ShareSpecItem[];
   signature: string;
@@ -79,7 +39,6 @@ interface ComposeShareSheetOptions {
 
 interface ComposeMaterialSpecOptions {
   heroImageUrl: string;
-  backdropId?: BackdropId;
   modelName: string;
   specItems: ShareSpecItem[];
   signature: string;
@@ -260,8 +219,7 @@ const drawProportionalColorBar = (
     ctx.fillRect(cursorX, y, segW, height);
 
     ctx.lineWidth = 1;
-    ctx.strokeStyle =
-      preset.id === 'obsidian' ? 'rgba(255,255,255,0.22)' : 'rgba(17,24,39,0.12)';
+    ctx.strokeStyle = 'rgba(17,24,39,0.12)';
     ctx.strokeRect(cursorX + 0.5, y + 0.5, Math.max(1, segW - 1), height - 1);
 
     cursorX += segW + gap;
@@ -309,7 +267,6 @@ const drawDraftingGrid = (
 
 export const composeShareSheet = async ({
   baseImageUrl,
-  backdropId = 'concrete',
   modelName,
   specItems,
   signature,
@@ -317,7 +274,7 @@ export const composeShareSheet = async ({
 }: ComposeShareSheetOptions): Promise<string> => {
   if (!baseImageUrl) return '';
 
-  const preset = STUDIO_BACKDROPS[backdropId] || STUDIO_BACKDROPS.concrete;
+  const preset = STUDIO_BACKDROP;
   const [img, logoImg] = await Promise.all([
     loadImageSafe(baseImageUrl),
     loadImageSafe(paihoLogoUrl),
@@ -332,9 +289,23 @@ export const composeShareSheet = async ({
   const hasCustomColors = specItems.some((item) => item.hasCustomColor);
   const slices = hasCustomColors ? computeColorDna(specItems) : [];
   const hasDna = slices.length > 0;
-  const footerHeight = hasDna ? 228 : 168;
-  const totalHeight = baseHeight + footerHeight;
   const padX = 72;
+
+  const logoDrawH = 34;
+  const estimatedLogoW =
+    logoImg && logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0
+      ? Math.round(logoDrawH * (logoImg.naturalWidth / logoImg.naturalHeight))
+      : 0;
+  const dnaStartX = estimatedLogoW > 0 ? padX + estimatedLogoW + 58 : padX;
+  const dnaMaxRight = width - padX - 480;
+  const isHexMode = colorMode === 'HEX';
+  const chipWidth = isHexMode ? 236 : 316;
+  const chipRowHeight = 40;
+  const maxCols = Math.max(1, Math.floor((dnaMaxRight - dnaStartX) / chipWidth));
+  const dnaRowCount = hasDna ? Math.ceil(slices.length / maxCols) : 0;
+
+  const footerHeight = !hasDna ? 152 : 144 + dnaRowCount * chipRowHeight;
+  const totalHeight = baseHeight + footerHeight;
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -351,91 +322,83 @@ export const composeShareSheet = async ({
   const barY = baseHeight + (hasDna ? 12 : 10);
   const barWidth = width - padX * 2;
 
-  // 2. 依 3D 表面積比例分布的 Color DNA 長條
-  drawProportionalColorBar(ctx, slices, padX, barY, barWidth, 14, preset);
+  // 2. 依 3D 表面積比例分布的 Colorway 長條
+  drawProportionalColorBar(ctx, slices, padX, barY, barWidth, 12, preset);
 
-  // 3. 左下角：PAIHO 公司 LOGO
-  const footerCenterY = baseHeight + (hasDna ? 124 : 96);
-  const headerTextY = baseHeight + (hasDna ? 82 : 58);
-  const metaTextY = baseHeight + (hasDna ? 168 : 134);
-  const logoRight = drawBrandLogo(ctx, logoImg, padX, footerCenterY, 45);
+  // 3. 左下角：PAIHO 公司 LOGO（與配色列及右側署名水平置中對齊）
+  const headerTextY = !hasDna ? baseHeight + 54 : dnaRowCount >= 2 ? baseHeight + 70 : baseHeight + 66;
+  const footerCenterY = !hasDna ? baseHeight + 88 : dnaRowCount >= 2 ? baseHeight + 114 : baseHeight + 108;
+  const metaTextY = !hasDna ? baseHeight + 124 : dnaRowCount >= 2 ? baseHeight + 158 : baseHeight + 148;
+  const logoCenterY = !hasDna
+    ? footerCenterY
+    : dnaRowCount === 1
+      ? footerCenterY
+      : dnaRowCount === 2
+        ? baseHeight + 122
+        : baseHeight + 24 + (footerHeight - 24) / 2;
+  drawBrandLogo(ctx, logoImg, padX, logoCenterY, logoDrawH);
 
-  // 4. 中間：僅於有客製化調整顏色時顯示 Color DNA 比例百分比色票摘要
+  // 4. 中間：僅於有客製化調整顏色時顯示 Colorway Palette 摘要
   if (hasDna) {
-    const dnaStartX = logoRight > padX ? logoRight + 46 : padX;
-    const dnaMaxRight = width - padX - 540;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
 
     ctx.fillStyle = preset.accentHex;
-    ctx.font = '800 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     const dnaTitle =
       colorMode === 'HEX'
-        ? `${modelName.toUpperCase()}  ·  COLOR DNA DISTRIBUTION`
-        : `${modelName.toUpperCase()}  ·  COLOR DNA DISTRIBUTION (${colorMode})`;
+        ? `${modelName.toUpperCase()}  ·  COLORWAY PALETTE`
+        : `${modelName.toUpperCase()}  ·  COLORWAY PALETTE (${colorMode})`;
     ctx.fillText(dnaTitle, dnaStartX, headerTextY);
 
-    const isHexMode = colorMode === 'HEX';
-    const chipWidth = isHexMode ? 228 : 308;
-    const chipRowHeight = 42;
-    const maxCols = Math.max(1, Math.floor((dnaMaxRight - dnaStartX) / chipWidth));
-    const displaySlices = slices.slice(0, maxCols * 2);
-
-    displaySlices.forEach((slice, idx) => {
+    slices.forEach((slice, idx) => {
       const col = idx % maxCols;
       const row = Math.floor(idx / maxCols);
       const chipX = dnaStartX + col * chipWidth;
       const chipY = footerCenterY + row * chipRowHeight;
 
       ctx.beginPath();
-      ctx.arc(chipX + 10, chipY, 10, 0, Math.PI * 2);
+      ctx.arc(chipX + 10, chipY, 9.5, 0, Math.PI * 2);
       ctx.fillStyle = slice.hex;
       ctx.fill();
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle =
-        backdropId === 'obsidian' ? 'rgba(255,255,255,0.35)' : 'rgba(17,24,39,0.22)';
+      ctx.strokeStyle = 'rgba(17,24,39,0.22)';
       ctx.stroke();
 
       const codeText = formatColorBadge(slice.hex, colorMode);
       ctx.fillStyle = preset.textHex;
       ctx.font = isHexMode
-        ? '800 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-        : '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ? '700 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        : '700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.fillText(codeText, chipX + 28, chipY);
 
       const codeW = ctx.measureText(codeText).width;
       ctx.fillStyle = preset.accentHex;
       ctx.font = isHexMode
-        ? '800 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-        : '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(`${slice.percentage}%`, chipX + 36 + codeW, chipY);
+        ? '900 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        : '900 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(`${slice.percentage}%`, chipX + 40 + codeW, chipY);
     });
-
-    if (slices.length > displaySlices.length) {
-      ctx.fillStyle = preset.mutedHex;
-      ctx.font = '700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(`+${slices.length - displaySlices.length} MORE COLORS`, dnaStartX, baseHeight + 202);
-    }
   }
 
-  // 5. 右下角：設計師自訂署名
+  // 5. 右下角：設計師自訂署名（字級協調縮小，不搶走品牌 LOGO 重心）
   const rightX = width - padX;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'right';
 
   const cleanSig = signature.trim();
   ctx.fillStyle = preset.mutedHex;
-  ctx.font = '800 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = '800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillText(cleanSig ? 'DESIGNER' : 'DIGITAL DESIGN WORKSPACE', rightX, headerTextY);
 
   ctx.fillStyle = preset.textHex;
-  ctx.font = '900 34px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  const sigDisplay = truncateCanvasText(ctx, (cleanSig || 'PAIHO-U STUDIO').toUpperCase(), 500);
+  ctx.font = '900 29px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const sigDisplay = truncateCanvasText(ctx, (cleanSig || 'PAIHO-U STUDIO').toUpperCase(), 460);
   ctx.fillText(sigDisplay, rightX, footerCenterY);
 
   const dateLabel = new Date().toISOString().slice(0, 10);
   ctx.fillStyle = preset.mutedHex;
-  ctx.font = '600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.font = '600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillText(`PAIHO-U  ·  ${dateLabel}`, rightX, metaTextY);
 
   return canvas.toDataURL('image/png', 0.92);
@@ -443,19 +406,36 @@ export const composeShareSheet = async ({
 
 export const composeMaterialSpecSheet = async ({
   heroImageUrl,
-  backdropId = 'concrete',
   modelName,
   specItems,
   signature,
   colorMode = 'HEX',
 }: ComposeMaterialSpecOptions): Promise<string> => {
-  const preset = STUDIO_BACKDROPS[backdropId] || STUDIO_BACKDROPS.concrete;
+  const preset = STUDIO_BACKDROP;
 
   const sortedItems = [...specItems].sort((a, b) => b.area - a.area);
-  const slices = computeColorDna(sortedItems);
+  const hasCustomColors = sortedItems.some((item) => item.hasCustomColor);
+  const slices = hasCustomColors ? computeColorDna(sortedItems) : [];
+
+  // 規格表上方對應各顏色的部位列表（包含純改色與貼圖染色的部位）
+  const partsByHex = new Map<string, string[]>();
+  sortedItems.forEach((item) => {
+    if (!item.hasCustomColor) return;
+    const key = item.hex.toUpperCase();
+    const list = partsByHex.get(key) || [];
+    if (!list.includes(item.partName)) {
+      list.push(item.partName);
+    }
+    partsByHex.set(key, list);
+  });
+
+  // 規格表下方明細僅列出有套用／修改貼圖材質的部位
+  const materialItems = sortedItems.filter((item) =>
+    Boolean(item.materialImageUrl || item.materialTitle)
+  );
 
   const uniqueThumbUrls = Array.from(
-    new Set(sortedItems.map((i) => i.materialImageUrl).filter(Boolean) as string[])
+    new Set(materialItems.map((i) => i.materialImageUrl).filter(Boolean) as string[])
   );
 
   const [logoImg, heroImg, ...thumbImages] = await Promise.all([
@@ -475,16 +455,37 @@ export const composeMaterialSpecSheet = async ({
   const cols = 2;
   const cardGap = 44;
   const cardW = Math.floor((contentWidth - cardGap) / cols);
-  const cardH = 244;
-  const rows = Math.max(1, Math.ceil(sortedItems.length / cols));
+  const cardH = 224;
+  const cardRowGap = 28;
+  const rows = Math.max(1, Math.ceil(materialItems.length / cols));
 
-  const headerBottomY = 200;
-  const heroSectionY = 244;
-  const heroSectionH = 520;
-  const scheduleTitleY = heroSectionY + heroSectionH + 74;
-  const cardsStartY = scheduleTitleY + 46;
-  const cardsTotalH = sortedItems.length > 0 ? rows * cardH + (rows - 1) * 32 : 200;
-  const footerH = 120;
+  const useTwoPaletteCols = slices.length > 6;
+  const paletteRowsPerCol = useTwoPaletteCols ? Math.ceil(slices.length / 2) : slices.length;
+  const paletteRowStep = useTwoPaletteCols
+    ? paletteRowsPerCol <= 4
+      ? 58
+      : paletteRowsPerCol === 5
+        ? 48
+        : paletteRowsPerCol === 6
+          ? 44
+          : 42
+    : slices.length <= 4
+      ? 58
+      : slices.length === 5
+        ? 48
+        : 44;
+  const paletteListOffset = (useTwoPaletteCols ? paletteRowsPerCol <= 4 : slices.length <= 4) ? 120 : 104;
+
+  const headerBottomY = 160;
+  const heroSectionY = 200;
+  const heroSectionH =
+    slices.length === 0
+      ? 468
+      : Math.max(468, paletteListOffset + (paletteRowsPerCol - 1) * paletteRowStep + 80);
+  const scheduleTitleY = heroSectionY + heroSectionH + 62;
+  const cardsStartY = scheduleTitleY + 40;
+  const cardsTotalH = materialItems.length > 0 ? rows * cardH + (rows - 1) * cardRowGap : 148;
+  const footerH = 92;
   const totalHeight = cardsStartY + cardsTotalH + footerH;
 
   const canvas = document.createElement('canvas');
@@ -497,37 +498,37 @@ export const composeMaterialSpecSheet = async ({
   ctx.fillRect(0, 0, width, totalHeight);
   drawDraftingGrid(ctx, 0, 0, width, totalHeight, 40, 5, 'rgba(17, 24, 39, 0.028)', 'rgba(17, 24, 39, 0.052)');
 
-  // 1. 頁首：PAIHO Logo + 標題 + 鞋型署名
+  // 1. 頁首：PAIHO Logo（縮小 25%）+ 標題 + 鞋型署名（字級比例對齊）
   ctx.textBaseline = 'middle';
-  const logoRight = drawBrandLogo(ctx, logoImg, padX, 118, 46);
-  const titleX = logoRight > padX ? logoRight + 38 : padX;
+  const logoRight = drawBrandLogo(ctx, logoImg, padX, 94, 34);
+  const titleX = logoRight > padX ? logoRight + 28 : padX;
 
   ctx.textAlign = 'left';
   ctx.fillStyle = preset.textHex;
-  ctx.font = '900 34px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('MATERIAL & COLOR SPECIFICATION', titleX, 102);
+  ctx.font = '900 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('MATERIAL & COLOR SPECIFICATION', titleX, 80);
 
   ctx.fillStyle = preset.accentHex;
-  ctx.font = '800 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('PAIHO-U DIGITAL DESIGN WORKSPACE  ·  COMPLETE BOM SCHEDULE', titleX, 142);
+  ctx.font = '800 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('PAIHO-U DIGITAL DESIGN WORKSPACE', titleX, 114);
 
   const rightX = width - padX;
   ctx.textAlign = 'right';
   ctx.fillStyle = preset.textHex;
-  ctx.font = '900 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(modelName.toUpperCase(), rightX, 102);
+  ctx.font = '900 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(modelName.toUpperCase(), rightX, 80);
 
   const dateLabel = new Date().toISOString().slice(0, 10);
   const cleanSig = signature.trim().toUpperCase() || 'PAIHO-U STUDIO';
   ctx.fillStyle = preset.mutedHex;
-  ctx.font = '700 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(`${cleanSig}  ·  ${dateLabel}`, rightX, 142);
+  ctx.font = '700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(`${cleanSig}  ·  ${dateLabel}`, rightX, 114);
 
   ctx.fillStyle = preset.borderHex;
   ctx.fillRect(padX, headerBottomY, contentWidth, 2);
 
-  // 2. 主視覺與 Color DNA 總覽區
-  const heroCardW = 940;
+  // 2. 上半部：左側 3D 主視覺（無格線灰框）+ 右側配色與應用材質部位總覽
+  const heroCardW = 880;
   ctx.fillStyle = preset.cardBgHex;
   ctx.fillRect(padX, heroSectionY, heroCardW, heroSectionH);
   ctx.strokeStyle = preset.borderHex;
@@ -555,93 +556,167 @@ export const composeMaterialSpecSheet = async ({
 
   ctx.textAlign = 'left';
   ctx.fillStyle = preset.accentHex;
-  ctx.font = '800 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('COLOR DNA  ·  3D SURFACE AREA DISTRIBUTION', dnaPanelX, heroSectionY + 24);
+  ctx.font = '800 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('COLORWAY PALETTE  ·  3D SURFACE AREA', dnaPanelX, heroSectionY + 16);
 
-  drawProportionalColorBar(ctx, slices, dnaPanelX, heroSectionY + 58, dnaPanelW, 24, preset);
+  drawProportionalColorBar(ctx, slices, dnaPanelX, heroSectionY + 46, dnaPanelW, 18, preset);
 
   if (slices.length === 0) {
     ctx.fillStyle = preset.mutedHex;
-    ctx.font = '600 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('No customized color adjustments recorded yet.', dnaPanelX, heroSectionY + 140);
+    ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('No custom colorway adjustments specified.', dnaPanelX, heroSectionY + 122);
   } else {
-    const maxList = slices.slice(0, 7);
-    const rowStep = 50;
-    maxList.forEach((slice, idx) => {
-      const ry = heroSectionY + 130 + idx * rowStep;
+    const listStartY = heroSectionY + paletteListOffset;
+    const partLabelColor = '#374151';
 
-      ctx.beginPath();
-      ctx.arc(dnaPanelX + 12, ry, 12, 0, Math.PI * 2);
-      ctx.fillStyle = slice.hex;
-      ctx.fill();
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle =
-        backdropId === 'obsidian' ? 'rgba(255,255,255,0.35)' : 'rgba(17,24,39,0.22)';
-      ctx.stroke();
+    if (useTwoPaletteCols) {
+      const paletteColGap = 56;
+      const paletteColW = Math.floor((dnaPanelW - paletteColGap) / 2);
+      const dividerX = dnaPanelX + paletteColW + Math.floor(paletteColGap / 2);
 
-      const { primary, secondary } = formatColorSpecLabel(slice.hex, colorMode);
+      ctx.fillStyle = preset.borderHex;
+      ctx.fillRect(
+        dividerX,
+        listStartY - 14,
+        1.5,
+        (paletteRowsPerCol - 1) * paletteRowStep + 28
+      );
 
-      ctx.fillStyle = preset.textHex;
-      ctx.font = '800 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(primary, dnaPanelX + 38, ry);
-      const primaryW = ctx.measureText(primary).width;
+      ctx.font = '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      const maxCodeW = slices.reduce(
+        (max, slice) => Math.max(max, ctx.measureText(formatColorBadge(slice.hex, colorMode)).width),
+        0
+      );
 
-      ctx.fillStyle = preset.mutedHex;
-      ctx.font = '600 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(secondary, Math.max(dnaPanelX + 172, dnaPanelX + 54 + primaryW), ry);
+      slices.forEach((slice, idx) => {
+        const col = Math.floor(idx / paletteRowsPerCol);
+        const row = idx % paletteRowsPerCol;
+        const colX = dnaPanelX + col * (paletteColW + paletteColGap);
+        const ry = listStartY + row * paletteRowStep;
+        const partsX = colX + 30 + Math.ceil(maxCodeW) + 22;
+        const partsMaxW = Math.max(80, colX + paletteColW - partsX - 72);
 
-      // 迷你比例條
-      const miniBarX = dnaPanelX + 460;
-      const miniBarW = dnaPanelW - 570;
-      if (miniBarW > 60) {
-        ctx.fillStyle = preset.borderHex;
-        ctx.fillRect(miniBarX, ry - 4, miniBarW, 8);
+        ctx.beginPath();
+        ctx.arc(colX + 9.5, ry, 9.5, 0, Math.PI * 2);
         ctx.fillStyle = slice.hex;
-        ctx.fillRect(miniBarX, ry - 4, Math.max(6, Math.round(miniBarW * slice.ratio)), 8);
-      }
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(17,24,39,0.22)';
+        ctx.stroke();
 
-      ctx.textAlign = 'right';
-      ctx.fillStyle = preset.accentHex;
-      ctx.font = '900 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(`${slice.percentage}%`, dnaPanelX + dnaPanelW, ry);
-      ctx.textAlign = 'left';
-    });
+        const codeText = formatColorBadge(slice.hex, colorMode);
+        ctx.fillStyle = preset.textHex;
+        ctx.font = '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText(codeText, colX + 30, ry);
+
+        const partList = partsByHex.get(slice.hex.toUpperCase()) || [];
+        if (partList.length > 0) {
+          ctx.fillStyle = partLabelColor;
+          ctx.font = '700 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillText(truncateCanvasText(ctx, partList.join('  ·  '), partsMaxW), partsX, ry);
+        }
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = preset.accentHex;
+        ctx.font = '900 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText(`${slice.percentage}%`, colX + paletteColW, ry);
+        ctx.textAlign = 'left';
+      });
+    } else {
+      ctx.font = '800 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      const maxCodeW = slices.reduce(
+        (max, slice) => Math.max(max, ctx.measureText(formatColorBadge(slice.hex, colorMode)).width),
+        0
+      );
+      const partsX = dnaPanelX + 34 + Math.ceil(maxCodeW) + 32;
+      const partsMaxW = Math.max(120, dnaPanelX + dnaPanelW - partsX - 88);
+
+      slices.forEach((slice, idx) => {
+        const ry = listStartY + idx * paletteRowStep;
+
+        ctx.beginPath();
+        ctx.arc(dnaPanelX + 10.5, ry, 10.5, 0, Math.PI * 2);
+        ctx.fillStyle = slice.hex;
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(17,24,39,0.22)';
+        ctx.stroke();
+
+        const codeText = formatColorBadge(slice.hex, colorMode);
+        ctx.fillStyle = preset.textHex;
+        ctx.font = '800 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText(codeText, dnaPanelX + 34, ry);
+
+        const partList = partsByHex.get(slice.hex.toUpperCase()) || [];
+        if (partList.length > 0) {
+          ctx.fillStyle = partLabelColor;
+          ctx.font = '700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillText(truncateCanvasText(ctx, partList.join('  ·  '), partsMaxW), partsX, ry);
+        }
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = preset.accentHex;
+        ctx.font = '900 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText(`${slice.percentage}%`, dnaPanelX + dnaPanelW, ry);
+        ctx.textAlign = 'left';
+      });
+    }
   }
 
-  ctx.fillStyle = preset.mutedHex;
-  ctx.font = '700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  // 上方區塊底部：標示已配置材料的部位摘要
+  const summaryDividerY = heroSectionY + heroSectionH - 44;
+  const summaryTextY = heroSectionY + heroSectionH - 15;
+  ctx.fillStyle = preset.borderHex;
+  ctx.fillRect(dnaPanelX, summaryDividerY, dnaPanelW, 1.5);
+
+  const textureSummaryPrefix = `APPLIED MATERIALS (${materialItems.length}):  `;
+  ctx.font = '800 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = preset.accentHex;
+  ctx.fillText(textureSummaryPrefix, dnaPanelX, summaryTextY);
+  const prefixW = ctx.measureText(textureSummaryPrefix).width;
+
+  const texturePartsLabel =
+    materialItems.length > 0
+      ? materialItems.map((i) => i.partName).join('  ·  ')
+      : 'NONE';
+  ctx.fillStyle = materialItems.length > 0 ? preset.textHex : preset.mutedHex;
+  ctx.font = '700 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillText(
-    `CUSTOMIZED PARTS: ${sortedItems.length}   ·   ACTIVE PALETTE COLORS: ${slices.length}`,
-    dnaPanelX,
-    heroSectionY + heroSectionH - 14
+    truncateCanvasText(ctx, texturePartsLabel, Math.max(120, dnaPanelW - prefixW)),
+    dnaPanelX + prefixW,
+    summaryTextY
   );
 
-  // 3. 完整部位材料圖文明細表
+  // 3. 下半部：材料應用規格明細卡片
   ctx.fillStyle = preset.textHex;
-  ctx.font = '900 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(`COMPLETE MATERIAL & COLOR SCHEDULE (${sortedItems.length} PARTS)`, padX, scheduleTitleY);
+  ctx.font = '900 21px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(
+    `MATERIAL SPECIFICATION (${materialItems.length} ${materialItems.length === 1 ? 'PART' : 'PARTS'})`,
+    padX,
+    scheduleTitleY
+  );
 
-  if (sortedItems.length === 0) {
+  if (materialItems.length === 0) {
     ctx.fillStyle = preset.cardBgHex;
-    ctx.fillRect(padX, cardsStartY, contentWidth, 160);
+    ctx.fillRect(padX, cardsStartY, contentWidth, 148);
     ctx.strokeStyle = preset.borderHex;
-    ctx.strokeRect(padX, cardsStartY, contentWidth, 160);
+    ctx.strokeRect(padX, cardsStartY, contentWidth, 148);
 
     ctx.fillStyle = preset.mutedHex;
-    ctx.font = '600 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(
-      'Select any part on the 3D sneaker to apply PAIHO materials or custom colors before exporting.',
+      'Select any part on the 3D sneaker and apply a PAIHO material before exporting.',
       width / 2,
-      cardsStartY + 80
+      cardsStartY + 74
     );
     ctx.textAlign = 'left';
   } else {
-    sortedItems.forEach((item, idx) => {
+    materialItems.forEach((item, idx) => {
       const col = idx % cols;
       const row = Math.floor(idx / cols);
       const cx = padX + col * (cardW + cardGap);
-      const cy = cardsStartY + row * (cardH + 32);
+      const cy = cardsStartY + row * (cardH + cardRowGap);
 
       ctx.fillStyle = preset.cardBgHex;
       ctx.fillRect(cx, cy, cardW, cardH);
@@ -649,8 +724,8 @@ export const composeMaterialSpecSheet = async ({
       ctx.lineWidth = 2;
       ctx.strokeRect(cx, cy, cardW, cardH);
 
-      const thumbSize = 180;
-      const thumbX = cx + 32;
+      const thumbSize = 164;
+      const thumbX = cx + 30;
       const thumbY = cy + (cardH - thumbSize) / 2;
 
       const thumbImg = item.materialImageUrl ? thumbMap.get(item.materialImageUrl) : null;
@@ -676,14 +751,16 @@ export const composeMaterialSpecSheet = async ({
         ctx.lineWidth = 2;
         ctx.strokeRect(thumbX, thumbY, thumbSize, thumbSize);
 
-        // 右下角染色標記圓點
-        ctx.beginPath();
-        ctx.arc(thumbX + thumbSize - 22, thumbY + thumbSize - 22, 16, 0, Math.PI * 2);
-        ctx.fillStyle = item.hex;
-        ctx.fill();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.stroke();
+        // 僅於有調整染色時顯示右下角染色圓點
+        if (item.hasCustomColor) {
+          ctx.beginPath();
+          ctx.arc(thumbX + thumbSize - 20, thumbY + thumbSize - 20, 14, 0, Math.PI * 2);
+          ctx.fillStyle = item.hex;
+          ctx.fill();
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.stroke();
+        }
       } else {
         ctx.fillStyle = item.hex;
         ctx.fillRect(thumbX, thumbY, thumbSize, thumbSize);
@@ -692,48 +769,55 @@ export const composeMaterialSpecSheet = async ({
         ctx.strokeRect(thumbX, thumbY, thumbSize, thumbSize);
       }
 
-      const infoX = thumbX + thumbSize + 34;
-      const infoW = cx + cardW - infoX - 32;
+      const infoX = thumbX + thumbSize + 32;
+      const infoW = cx + cardW - infoX - 30;
 
       // 部位名稱
       ctx.textAlign = 'left';
       ctx.fillStyle = preset.textHex;
-      ctx.font = '900 25px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(truncateCanvasText(ctx, item.partName.toUpperCase(), infoW), infoX, cy + 44);
+      ctx.font = '900 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(truncateCanvasText(ctx, item.partName.toUpperCase(), infoW), infoX, cy + 40);
 
       // 材質名稱
-      const matLabel = item.materialTitle
-        ? item.materialTitle.toUpperCase()
-        : 'CUSTOM COLOR FINISH';
+      const matLabel = (item.materialTitle || 'PAIHO MATERIAL').toUpperCase();
       ctx.fillStyle = preset.accentHex;
-      ctx.font = '800 19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(truncateCanvasText(ctx, matLabel, infoW), infoX, cy + 82);
+      ctx.font = '800 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(truncateCanvasText(ctx, matLabel, infoW), infoX, cy + 74);
 
       // 材質說明文字
-      const desc =
-        item.materialDescription ||
-        `Bespoke solid colorway treatment calibrated to exact ${colorMode} & studio lighting specification.`;
-      ctx.fillStyle = preset.mutedHex;
-      ctx.font = '500 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      drawWrappedText(ctx, desc, infoX, cy + 120, infoW, 25, 3);
+      if (item.materialDescription) {
+        ctx.fillStyle = preset.mutedHex;
+        ctx.font = '500 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        drawWrappedText(
+          ctx,
+          item.materialDescription,
+          infoX,
+          cy + 112,
+          infoW,
+          26,
+          item.hasCustomColor ? 2 : 3
+        );
+      }
 
-      // 色碼資訊（僅顯示分享視窗當前選擇的色彩模式）
-      const { primary: cardPrimary } = formatColorSpecLabel(item.hex, colorMode);
-      ctx.fillStyle = preset.textHex;
-      ctx.font = '800 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(cardPrimary, infoX, cy + cardH - 30);
+      // 色碼資訊（有調整染色時顯示當前色碼）
+      if (item.hasCustomColor) {
+        const { primary: cardPrimary } = formatColorSpecLabel(item.hex, colorMode);
+        ctx.fillStyle = preset.textHex;
+        ctx.font = '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText(cardPrimary, infoX, cy + cardH - 28);
+      }
     });
   }
 
-  // 4. 頁尾
-  const footerY = totalHeight - 52;
+  // 4. 精簡頁尾
+  const footerY = totalHeight - 38;
   ctx.fillStyle = preset.borderHex;
-  ctx.fillRect(padX, footerY - 34, contentWidth, 2);
+  ctx.fillRect(padX, footerY - 28, contentWidth, 2);
 
   ctx.textAlign = 'left';
   ctx.fillStyle = preset.mutedHex;
-  ctx.font = '700 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('PAIHO-U DIGITAL DESIGN WORKSPACE  ·  COMPLETE MATERIAL SPECIFICATION', padX, footerY);
+  ctx.font = '700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('PAIHO-U STUDIO', padX, footerY);
 
   ctx.textAlign = 'right';
   ctx.fillText('WWW.PAIHO.COM', width - padX, footerY);

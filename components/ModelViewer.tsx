@@ -8,6 +8,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { ArrowUpRight } from 'lucide-react';
 import { SelectedPart, TextureConfig, TextureItem } from '../types';
+import { UNIFORM_LINK } from '../data';
 import { textureCacheManager } from '../services/textureCacheManager';
 import {
   getNormalizedPartName,
@@ -187,14 +188,6 @@ const computeRequiredCameraDistance = (
     return requiredDist;
 };
 
-const hexToSrgbVec3 = (hex: string): THREE.Vector3 => {
-    const clean = (hex || '#ffffff').replace('#', '').trim();
-    const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
-    const num = parseInt(full, 16);
-    if (Number.isNaN(num) || full.length !== 6) return new THREE.Vector3(1, 1, 1);
-    return new THREE.Vector3(((num >> 16) & 255) / 255, ((num >> 8) & 255) / 255, (num & 255) / 255);
-};
-
 export interface CaptureCompositionResult {
     sheetUrl: string;
     heroUrl: string;
@@ -252,10 +245,10 @@ const computePartSurfaceAreas = (shoeRoot: THREE.Object3D, modelId?: string): Re
     return areas;
 };
 
-const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: number; modelId?: string }>(({ contrast, sharpness, modelId }, ref) => {
+const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: number; modelId?: string; shareFillRatio?: number; shareSlotHeight?: number }>(({ contrast, sharpness, modelId, shareFillRatio = 0.68, shareSlotHeight = 720 }, ref) => {
     const { gl, scene, camera } = useThree();
     React.useImperativeHandle(ref, () => ({
-        captureComposition: async (options?: { backdropHex?: string; transparent?: boolean }) => {
+        captureComposition: async () => {
             return new Promise<CaptureCompositionResult>((resolve) => {
                 const perspCam = camera as THREE.PerspectiveCamera;
                 const originalPosition = camera.position.clone();
@@ -273,11 +266,9 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                 let backdropCompositePass: ShaderPass | null = null;
 
                 try {
-                    const isTransparent = Boolean(options?.transparent);
-                    const bgHex = options?.backdropHex || '#F4F5F7';
                     const totalWidth = 2560;
                     const halfWidth = totalWidth / 2;
-                    const halfHeight = 720;
+                    const halfHeight = shareSlotHeight;
                     const quarterWidth = halfWidth / 2;
                     const gutter = 20;
                     const slotH = halfHeight - gutter;
@@ -324,8 +315,6 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                     backdropCompositePass = new ShaderPass(BackdropCompositeShader);
                     backdropCompositePass.renderToScreen = false;
                     backdropCompositePass.material.blending = THREE.NoBlending;
-                    backdropCompositePass.uniforms.uBgColor.value.copy(hexToSrgbVec3(bgHex));
-                    backdropCompositePass.uniforms.uPreserveAlpha.value = isTransparent ? 1.0 : 0.0;
 
                     byteTarget = new THREE.WebGLRenderTarget(initW, initH, {
                         format: THREE.RGBAFormat,
@@ -349,7 +338,7 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
 
                     // 採用長焦棚拍視角（6°）與全視角共用等距比例尺，確保 5 個視角呈真實 1:1 等比且鞋頭/鞋跟高度與地面基準一致
                     const STUDIO_FOV_DEG = 6;
-                    const UNIFIED_FILL_RATIO = 0.82;
+                    const UNIFIED_FILL_RATIO = shareFillRatio;
                     const defaultUp = new THREE.Vector3(0, 1, 0);
                     const topUp = new THREE.Vector3(-1, 0, 0);
 
@@ -385,6 +374,8 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                         unflippedCanvas: HTMLCanvasElement;
                         renderW: number;
                         renderH: number;
+                        minPx: number;
+                        maxPx: number;
                         minPy: number;
                         maxPy: number;
                     }
@@ -404,13 +395,22 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                         perspCam.updateProjectionMatrix();
                         camera.updateMatrixWorld();
 
+                        let minPx = view.w;
+                        let maxPx = 0;
                         let minPy = view.h;
                         let maxPy = 0;
                         for (let i = 0; i < shoePoints.length; i++) {
                             projVec.copy(shoePoints[i]).project(camera);
+                            const px = (projVec.x + 1) * 0.5 * view.w;
                             const py = (1 - projVec.y) * 0.5 * view.h;
+                            if (px < minPx) minPx = px;
+                            if (px > maxPx) maxPx = px;
                             if (py < minPy) minPy = py;
                             if (py > maxPy) maxPy = py;
+                        }
+                        if (!(minPx < maxPx)) {
+                            minPx = 0;
+                            maxPx = view.w;
                         }
                         if (!(minPy < maxPy)) {
                             minPy = 0;
@@ -452,6 +452,8 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                             unflippedCanvas,
                             renderW,
                             renderH,
+                            minPx,
+                            maxPx,
                             minPy,
                             maxPy,
                         };
@@ -463,11 +465,11 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                         .map((v) => renderViewSlot(v))
                         .filter((slot): slot is RenderedViewSlot => slot !== null);
 
-                    const TOP_MARGIN_PX = 24;
-                    const BOTTOM_SHADOW_MARGIN_PX = 46;
-                    const OUTER_PAD_TOP = 24;
-                    const ROW_GAP = 16;
-                    const OUTER_PAD_BOTTOM = 16;
+                    const TOP_MARGIN_PX = 34;
+                    const BOTTOM_SHADOW_MARGIN_PX = 48;
+                    const OUTER_PAD_TOP = 28;
+                    const ROW_GAP = 22;
+                    const OUTER_PAD_BOTTOM = 22;
 
                     const row1Slots = renderedSlots.filter((s) => s.view.row === 1);
                     const row2Slots = renderedSlots.filter((s) => s.view.row === 2);
@@ -491,10 +493,6 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                     canvas.height = compactTotalHeight;
                     const ctx = canvas.getContext('2d');
                     if (!ctx) { resolve({ sheetUrl: '', heroUrl: '', partAreas: {} }); return; }
-                    if (!isTransparent) {
-                        ctx.fillStyle = bgHex;
-                        ctx.fillRect(0, 0, totalWidth, compactTotalHeight);
-                    }
 
                     const drawRow = (slots: RenderedViewSlot[], cropTop: number, cropH: number, destY: number) => {
                         const sy = Math.round(cropTop * supersample);
@@ -513,24 +511,26 @@ const ScreenshotHandler = React.forwardRef<any, { contrast: number; sharpness: n
                             );
 
                             if (slot.view.captureStandaloneHero) {
+                                const heroLeft = Math.max(0, Math.floor((slot.minPx - 64) / 2) * 2);
+                                const heroRight = Math.min(slot.view.w, Math.ceil((slot.maxPx + 140) / 2) * 2);
+                                const heroW = Math.max(240, heroRight - heroLeft);
+                                const heroSx = Math.round(heroLeft * supersample);
+                                const heroSw = Math.round(heroW * supersample);
+
                                 const heroCanvas = document.createElement('canvas');
-                                heroCanvas.width = slot.view.w;
+                                heroCanvas.width = heroW;
                                 heroCanvas.height = cropH;
                                 const heroCtx = heroCanvas.getContext('2d');
                                 if (heroCtx) {
-                                    if (!isTransparent) {
-                                        heroCtx.fillStyle = bgHex;
-                                        heroCtx.fillRect(0, 0, slot.view.w, cropH);
-                                    }
                                     heroCtx.drawImage(
                                         slot.unflippedCanvas,
-                                        0,
+                                        heroSx,
                                         sy,
-                                        slot.renderW,
+                                        heroSw,
                                         sh,
                                         0,
                                         0,
-                                        slot.view.w,
+                                        heroW,
                                         cropH
                                     );
                                     heroUrl = heroCanvas.toDataURL('image/png', 0.92);
@@ -1349,12 +1349,10 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
         
         if (material.map !== origMat.map) {
             material.map = origMat.map;
-            mesh.userData.currentTextureUrl = null;
             changed = true;
         }
         if (material.normalMap !== origMat.normalMap) {
             material.normalMap = origMat.normalMap;
-            mesh.userData.currentNormalUrl = null;
             changed = true;
         }
         if (material.roughnessMap !== origMat.roughnessMap) {
@@ -1900,8 +1898,6 @@ const ContrastSharpnessShader = {
 const BackdropCompositeShader = {
   uniforms: {
     tDiffuse: { value: null },
-    uBgColor: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
-    uPreserveAlpha: { value: 0.0 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -1912,23 +1908,16 @@ const BackdropCompositeShader = {
   `,
   fragmentShader: `
     uniform sampler2D tDiffuse;
-    uniform vec3 uBgColor;
-    uniform float uPreserveAlpha;
     varying vec2 vUv;
 
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
-      if (uPreserveAlpha > 0.5) {
-        if (c.a <= 0.001) {
-          gl_FragColor = vec4(0.0);
-        } else {
-          vec3 straight = clamp(c.rgb / c.a, 0.0, 1.0);
-          gl_FragColor = vec4(straight, c.a);
-        }
-        return;
+      if (c.a <= 0.001) {
+        gl_FragColor = vec4(0.0);
+      } else {
+        vec3 straight = clamp(c.rgb / c.a, 0.0, 1.0);
+        gl_FragColor = vec4(straight, c.a);
       }
-      vec3 composited = clamp(c.rgb + uBgColor * (1.0 - c.a), 0.0, 1.0);
-      gl_FragColor = vec4(composited, 1.0);
     }
   `,
 };
@@ -2066,6 +2055,8 @@ interface ModelViewerProps {
   envRotation: number;
   contrast?: number;
   sharpness?: number;
+  shareFillRatio?: number;
+  shareSlotHeight?: number;
   dirLightRotation: number;
   shadowBlur: number;
   shadowNormalBias: number;
@@ -2073,7 +2064,6 @@ interface ModelViewerProps {
   isPickingColor?: boolean;
   onColorPicked?: (hex: string) => void;
   onModelReady?: () => void;
-  onRotateStart?: () => void;
   needsDemoRotation?: boolean;
   onUserRotated?: () => void;
 }
@@ -2408,7 +2398,7 @@ const OrbitDragOptimizer: React.FC<{
 };
 
 const ModelViewer = React.forwardRef<any, ModelViewerProps>(({ 
-    url, wireframeUrl, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envFiles, envPreset, envIntensity, envRotation, contrast = 1.08, sharpness = 0.35, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, isPickingColor, onColorPicked, onModelReady, needsDemoRotation, onUserRotated
+    url, wireframeUrl, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envFiles, envPreset, envIntensity, envRotation, contrast = 1.08, sharpness = 0.35, shareFillRatio = 0.68, shareSlotHeight = 720, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, isPickingColor, onColorPicked, onModelReady, needsDemoRotation, onUserRotated
 }, ref) => {
   const controlsRef = useRef<any>(null);
   const screenshotHandlerRef = useRef<any>(null);
@@ -2450,8 +2440,8 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
   }, [transitionState, onModelReady, modelId]);
 
   React.useImperativeHandle(ref, () => ({
-      captureComposition: (options?: { backdropHex?: string; transparent?: boolean }) =>
-        screenshotHandlerRef.current?.captureComposition(options) || Promise.resolve({ sheetUrl: '', heroUrl: '', partAreas: {} })
+      captureComposition: () =>
+        screenshotHandlerRef.current?.captureComposition() || Promise.resolve({ sheetUrl: '', heroUrl: '', partAreas: {} })
   }));
 
   const rad = (dirLightRotation * Math.PI) / 180;
@@ -2526,7 +2516,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
             autoRotateSpeed={3.0}
             enabled={!isPickingColor}
         />
-        <ScreenshotHandler ref={screenshotHandlerRef} contrast={contrast} sharpness={sharpness} modelId={modelId} />
+        <ScreenshotHandler ref={screenshotHandlerRef} contrast={contrast} sharpness={sharpness} modelId={modelId} shareFillRatio={shareFillRatio} shareSlotHeight={shareSlotHeight} />
         {wireframeUrl && transitionState === 'loading' && (
             <EnvErrorBoundary fallback={<WireframeFallback onComplete={() => setTransitionState('complete')} />}>
                 <LoadingWireframeOverlay 
@@ -2625,7 +2615,7 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
                         {activeTexture.description}
                     </span>
                     <a
-                       href={activeTexture.link || "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786"}
+                       href={activeTexture.link || UNIFORM_LINK}
                        target="_blank"
                        rel="noopener noreferrer"
                        className="ml-1 inline-flex items-center align-middle text-indigo-600 hover:text-indigo-800 transition-colors pointer-events-auto"

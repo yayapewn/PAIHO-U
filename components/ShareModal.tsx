@@ -62,7 +62,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     let cancelled = false;
     composeShareSheet({
       baseImageUrl: screenshotUrl,
-      backdropId: 'concrete',
       modelName,
       specItems,
       signature,
@@ -94,7 +93,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     try {
       const specUrl = await composeMaterialSpecSheet({
         heroImageUrl: heroScreenshotUrl || screenshotUrl || '',
-        backdropId: 'concrete',
         modelName,
         specItems,
         signature,
@@ -133,11 +131,11 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           <div className="flex items-start justify-between mb-5 md:mb-6">
             <div className="space-y-2">
               <h2 className="text-xl md:text-2xl font-black tracking-[0.14em] uppercase text-gray-900 leading-none">
-                The Masterpiece
+                Design Specification
               </h2>
               <div className="w-8 h-[2px] bg-indigo-600 rounded-full"></div>
               <p className="text-[9px] text-gray-400 font-black tracking-[0.35em] uppercase pt-0.5">
-                STUDIO RENDER · MULTI-VIEW EXPORT
+                MULTI-VIEW RENDER · MATERIAL & COLORWAY EXPORT
               </p>
             </div>
             <button
@@ -223,7 +221,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                       disabled={!previewUrl}
                       className="flex-1 lg:flex-none h-[38px] flex items-center justify-center gap-2 bg-black text-white border border-black px-3 sm:px-5 rounded-[2px] font-black text-[9.5px] sm:text-[10px] uppercase tracking-[0.14em] sm:tracking-[0.18em] transition-all hover:bg-gray-900 active:scale-[0.99] disabled:opacity-40 cursor-pointer whitespace-nowrap"
                     >
-                      <Download size={14} /> Download Image
+                      <Download size={14} /> Download Render
                     </button>
 
                     <button

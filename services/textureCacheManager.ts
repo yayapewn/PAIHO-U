@@ -10,7 +10,6 @@ export interface TextureCacheEntry {
   byteSize: number;
   lastUsed: number;
   refCount: number; // 正在使用的 Mesh 數量
-  pinned: boolean;  // 是否釘選保護
 }
 
 interface PreloadTask {
@@ -26,7 +25,6 @@ class TextureCacheManager {
   private preloadQueue: PreloadTask[] = [];
   private activePreloadCount = 0;
   private totalMemoryBytes = 0;
-  private currentActivePart: string | null = null;
   private imageBitmapLoader: THREE.ImageBitmapLoader;
 
   // 併發上限設定 (手機 3，桌機 4)
@@ -119,7 +117,6 @@ class TextureCacheManager {
             byteSize,
             lastUsed: Date.now(),
             refCount: 0,
-            pinned: false
           };
 
           this.cache.set(url, entry);
@@ -181,33 +178,14 @@ class TextureCacheManager {
   }
 
   /**
-   * 釘選貼圖 (防止被 LRU 清理)
-   */
-  public pinTexture(url: string): void {
-    const entry = this.cache.get(url);
-    if (entry) entry.pinned = true;
-  }
-
-  /**
-   * 取消釘選貼圖
-   */
-  public unpinTexture(url: string): void {
-    const entry = this.cache.get(url);
-    if (entry) {
-      entry.pinned = false;
-      this.evictIfNeeded();
-    }
-  }
-
-  /**
    * LRU 快取清理：當超過記憶體預算時，釋放最久未使用且 refCount === 0 的貼圖
    */
   private evictIfNeeded(): void {
     if (this.totalMemoryBytes <= this.cacheBudget) return;
 
-    // 篩選出未在使用中 (refCount <= 0 且未釘選) 的項目
+    // 篩選出未在使用中 (refCount <= 0) 的項目
     const unreferenced = Array.from(this.cache.values()).filter(
-      (entry) => entry.refCount <= 0 && !entry.pinned
+      (entry) => entry.refCount <= 0
     );
 
     // 依最後使用時間昇序排列 (最久未使用的排前面)
@@ -234,7 +212,6 @@ class TextureCacheManager {
     partName: string,
     activeUrl?: string | null
   ): void {
-    this.currentActivePart = partName;
 
     // 清除隊列中非當前部位、且尚未開始的低優先任務 (支援 Preload cancellation)
     this.preloadQueue = this.preloadQueue.filter(
@@ -332,7 +309,7 @@ class TextureCacheManager {
   public onModelSwitch(keepUrls?: Set<string>): void {
     this.preloadQueue = [];
     const unreferenced = Array.from(this.cache.values()).filter(
-      (entry) => entry.refCount <= 0 && !entry.pinned && !keepUrls?.has(entry.url)
+      (entry) => entry.refCount <= 0 && !keepUrls?.has(entry.url)
     );
     for (const entry of unreferenced) {
       entry.texture.dispose();
@@ -346,21 +323,12 @@ class TextureCacheManager {
    */
   public clearCache(): void {
     this.preloadQueue = [];
-    this.currentActivePart = null;
     for (const entry of this.cache.values()) {
       entry.refCount = 0;
-      entry.pinned = false;
       entry.texture.dispose();
     }
     this.cache.clear();
     this.totalMemoryBytes = 0;
-  }
-
-  /**
-   * 判斷某貼圖是否已存在快取中
-   */
-  public has(url: string): boolean {
-    return this.cache.has(url);
   }
 }
 

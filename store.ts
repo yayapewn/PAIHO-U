@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
-import { TRAVELER_VAMP_TEXTURES, MODELS } from './data';
+import { MODELS } from './data';
 import { ColorMode } from './services/colorUtils';
 
 interface AppState {
@@ -12,8 +12,6 @@ interface AppState {
   // App State
   activeModelIndex: number;
   setActiveModelIndex: (index: number) => void;
-  libraries: { materials: TextureItem[] };
-  setLibraries: (libs: { materials: TextureItem[] }) => void;
   selectedPart: SelectedPart | null;
   setSelectedPart: (part: SelectedPart | null) => void;
   activeTexture: TextureItem | null;
@@ -70,9 +68,6 @@ export const useAppStore = create<AppState>()((set) => ({
 
   activeModelIndex: 0,
   setActiveModelIndex: (index) => set({ activeModelIndex: index }),
-  
-  libraries: { materials: TRAVELER_VAMP_TEXTURES },
-  setLibraries: (libs) => set({ libraries: libs }),
   
   selectedPart: null,
   setSelectedPart: (part) => set({ selectedPart: part }),

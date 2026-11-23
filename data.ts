@@ -16,7 +16,9 @@ export const MODELS = [
     initialEnvIntensity: 0.50,
     initialEnvRotation: 202,
     contrast: 1.14,
-    sharpness: 0.50
+    sharpness: 0.50,
+    shareFillRatio: 0.78,
+    shareSlotHeight: 820
   },
   { 
     id: 'lace', 
@@ -29,7 +31,9 @@ export const MODELS = [
     initialEnvIntensity: 1.05,
     initialEnvRotation: 280,
     contrast: 1.16,
-    sharpness: 0.30
+    sharpness: 0.30,
+    shareFillRatio: 0.68,
+    shareSlotHeight: 720
   },
   { 
     id: 'dna', 
@@ -42,7 +46,9 @@ export const MODELS = [
     initialEnvIntensity: 0.60,
     initialEnvRotation: 207,
     contrast: 1.14,
-    sharpness: 0.65
+    sharpness: 0.65,
+    shareFillRatio: 0.76,
+    shareSlotHeight: 860
   }
 ];
 

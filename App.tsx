@@ -5,7 +5,7 @@ import { ProColorPicker } from './components/ProColorPicker';
 import { ShareModal } from './components/ShareModal';
 import { DevUvTool } from './components/DevUvTool';
 import { TextureItem, SelectedPart, TextureConfig } from './types';
-import { MODELS, TRAVELER_VAMP_TEXTURES, DEFAULT_HDRI_URL } from './data';
+import { MODELS, TRAVELER_VAMP_TEXTURES, DEFAULT_HDRI_URL, UNIFORM_LINK } from './data';
 import { useAppStore } from './store';
 import { textureCacheManager } from './services/textureCacheManager';
 import { getPartStorageKey, isPartLibrarySupported, getLinkedColorParts } from './services/partConfig';
@@ -19,7 +19,6 @@ const App: React.FC = () => {
   const {
     devConfigs, setDevConfigs, clearDevConfigs,
     activeModelIndex, setActiveModelIndex,
-    libraries, setLibraries,
     selectedPart, setSelectedPart,
     activeTexture, setActiveTexture,
     colorMode, setColorMode,
@@ -49,13 +48,7 @@ const App: React.FC = () => {
   const currentModel = MODELS[activeModelIndex];
 
   // 即時且同步推導當前部位可用的材質列表（暫時指定所有部位使用 TRAVELER_VAMP_TEXTURES）
-  const currentMaterials = useMemo(() => {
-    return TRAVELER_VAMP_TEXTURES;
-  }, []);
-
-  useEffect(() => {
-    setLibraries({ materials: currentMaterials });
-  }, [currentMaterials, setLibraries]);
+  const currentMaterials = TRAVELER_VAMP_TEXTURES;
 
   const isLibrarySupported = useCallback(
     (partName: string) => isPartLibrarySupported(partName, currentModel.id),
@@ -218,7 +211,7 @@ const App: React.FC = () => {
     setIsGeneratingScreenshot(true);
     setTimeout(async () => {
         const result: CaptureCompositionResult | undefined =
-          await modelViewerRef.current?.captureComposition({ transparent: true });
+          await modelViewerRef.current?.captureComposition();
         setScreenshotUrl(result?.sheetUrl || null);
         setHeroScreenshotUrl(result?.heroUrl || null);
         setPartAreas(result?.partAreas || {});
@@ -245,13 +238,13 @@ const App: React.FC = () => {
       const partKey = getPartStorageKey(currentModel.id, selectedPart.name);
       const currentUrl = partTextures[partKey]?.url;
       if (currentUrl) {
-          const match = libraries.materials.find(t => t.url === currentUrl);
+          const match = currentMaterials.find(t => t.url === currentUrl);
           setActiveTexture(match || null);
       } else {
           setActiveTexture(null);
       }
     }
-  }, [selectedPart, currentModel.id, partTextures, libraries, setActiveTexture]);
+  }, [selectedPart, currentModel.id, partTextures, currentMaterials, setActiveTexture]);
 
   const asideClasses = useMemo(() => {
     const base = "fixed z-[60] bg-white transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col overflow-visible pb-[env(safe-area-inset-bottom)]";
@@ -277,8 +270,8 @@ const App: React.FC = () => {
               if (navigator.canShare && navigator.canShare({ files: [file] })) {
                   await navigator.share({
                       files: [file],
-                      title: 'The Masterpiece',
-                      text: 'Studio Render · Multi-View Export',
+                      title: 'Design Specification',
+                      text: 'Multi-View Render · Material & Colorway Export',
                   });
                   return;
               }
@@ -398,6 +391,8 @@ const App: React.FC = () => {
              envRotation={envRotation} 
              contrast={currentModel.contrast}
              sharpness={currentModel.sharpness}
+             shareFillRatio={currentModel.shareFillRatio}
+             shareSlotHeight={currentModel.shareSlotHeight}
              dirLightRotation={104}
              shadowBlur={4}
              shadowNormalBias={0.01}
@@ -527,7 +522,7 @@ const App: React.FC = () => {
                                   {activeTexture && (
                                       <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500 delay-100 fill-mode-both">
                                           <a
-                                              href={activeTexture.link || "https://www.paiho.com/tw/material-hub/b873383c1623dcffafd786ce755b2786"}
+                                              href={activeTexture.link || UNIFORM_LINK}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               className="group flex items-center justify-between p-3.5 rounded-[2px] bg-gray-50/80 hover:bg-indigo-50/80 border border-gray-100 hover:border-indigo-100 transition-all cursor-pointer"
