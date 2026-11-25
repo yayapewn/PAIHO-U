@@ -1,8 +1,0 @@
-{
-  "name": "1119修改切換貼圖閃爍Remix PAIHO-U",
-  "description": "Swap materials in real-time and preview your ideal design.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
