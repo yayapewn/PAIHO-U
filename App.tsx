@@ -397,6 +397,7 @@ const App: React.FC = () => {
              shadowBlur={4}
              shadowNormalBias={0.01}
              autoRotate={autoRotate}
+             onAutoRotateChange={setAutoRotate}
              isPickingColor={isPickingColor}
              onColorPicked={handleColorPicked}
            />

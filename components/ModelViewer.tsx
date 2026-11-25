@@ -834,9 +834,11 @@ interface ModelProps {
   onColorPicked?: (hex: string) => void;
   isOrbitDraggingRef?: React.MutableRefObject<boolean>;
   focusStateRef?: React.MutableRefObject<CameraFocusState>;
+  autoRotate?: boolean;
+  onAutoRotateChange?: (rotate: boolean) => void;
 }
 
-const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked, isOrbitDraggingRef, focusStateRef, interactive = true }) => {
+const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId, modelScale, modelRotation, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked, isOrbitDraggingRef, focusStateRef, autoRotate, onAutoRotateChange, interactive = true }) => {
   const { scene } = useGLTF(url);
   const { gl, camera, size } = useThree();
   
@@ -1672,12 +1674,15 @@ const Model: React.FC<ModelProps & { interactive?: boolean }> = ({ url, modelId,
                     focusStateRef.current.triggerId += 1;
                 }
 
+                if (autoRotate) {
+                    onAutoRotateChange?.(false);
+                }
                 onPartSelect({ name: normalizedPartName, materialName: mat.name, id: mesh.uuid });
             }}
           />;
 };
 
-const InnerScene = React.memo(({ visible = true, url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked, isOrbitDraggingRef, focusStateRef }: ModelProps & { visible?: boolean }) => {
+const InnerScene = React.memo(({ visible = true, url, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, controls, isPickingColor, onColorPicked, isOrbitDraggingRef, focusStateRef, autoRotate, onAutoRotateChange }: ModelProps & { visible?: boolean }) => {
     const [modelBottom, setModelBottom] = useState(-0.1);
     const { gl } = useThree();
 
@@ -1709,6 +1714,8 @@ const InnerScene = React.memo(({ visible = true, url, modelId, modelScale, model
                         onColorPicked={onColorPicked}
                         isOrbitDraggingRef={isOrbitDraggingRef}
                         focusStateRef={focusStateRef}
+                        autoRotate={autoRotate}
+                        onAutoRotateChange={onAutoRotateChange}
                     />
                 </group>
             </Center>
@@ -2061,6 +2068,7 @@ interface ModelViewerProps {
   shadowBlur: number;
   shadowNormalBias: number;
   autoRotate: boolean;
+  onAutoRotateChange?: (rotate: boolean) => void;
   isPickingColor?: boolean;
   onColorPicked?: (hex: string) => void;
   onModelReady?: () => void;
@@ -2196,6 +2204,11 @@ const CameraFocusController: React.FC<{
 
         const goal = focusStateRef.current;
         if (!goal.active) return;
+
+        // 防止鏡頭對焦動畫與 OrbitControls 自動旋轉產生首幀拉扯
+        if (controls.autoRotate) {
+            controls.autoRotate = false;
+        }
 
         _focusOffset.copy(camera.position).sub(controls.target);
         if (_focusOffset.lengthSq() < 1e-8) {
@@ -2398,7 +2411,7 @@ const OrbitDragOptimizer: React.FC<{
 };
 
 const ModelViewer = React.forwardRef<any, ModelViewerProps>(({ 
-    url, wireframeUrl, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envFiles, envPreset, envIntensity, envRotation, contrast = 1.08, sharpness = 0.35, shareFillRatio = 0.68, shareSlotHeight = 720, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, isPickingColor, onColorPicked, onModelReady, needsDemoRotation, onUserRotated
+    url, wireframeUrl, modelId, modelScale, modelRotation, modelPosition, selectedPart, onPartSelect, textureMap, activeTexture, envFiles, envPreset, envIntensity, envRotation, contrast = 1.08, sharpness = 0.35, shareFillRatio = 0.68, shareSlotHeight = 720, dirLightRotation, shadowBlur, shadowNormalBias, autoRotate, onAutoRotateChange, isPickingColor, onColorPicked, onModelReady, needsDemoRotation, onUserRotated
 }, ref) => {
   const controlsRef = useRef<any>(null);
   const screenshotHandlerRef = useRef<any>(null);
@@ -2470,6 +2483,12 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
               e.clientY - canvasPointerDownRef.current.y
             );
             if (dist > 8) return;
+            if (autoRotate) {
+              if (controlsRef.current) {
+                controlsRef.current.autoRotate = false;
+              }
+              onAutoRotateChange?.(false);
+            }
             onPartSelect(null);
             if (transitionState === 'complete') {
               focusStateRef.current.active = true;
@@ -2548,6 +2567,8 @@ const ModelViewer = React.forwardRef<any, ModelViewerProps>(({
                     onColorPicked={onColorPicked}
                     isOrbitDraggingRef={isOrbitDraggingRef}
                     focusStateRef={focusStateRef}
+                    autoRotate={autoRotate}
+                    onAutoRotateChange={onAutoRotateChange}
                 />
                 <StudioEnvironment
                   envFiles={envFiles}
